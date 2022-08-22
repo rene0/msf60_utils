@@ -19,6 +19,7 @@ pub struct NPLUtils {
     before_first_edge: bool,
     first_minute: bool,
     new_minute: bool,
+    new_second: bool,
     act_len: u32,
     sec_len: u32,
     split_second: bool,
@@ -30,20 +31,15 @@ pub struct NPLUtils {
     parity_2: Option<bool>,
     parity_3: Option<bool>,
     parity_4: Option<bool>,
-    frame_counter: u8,
-    ticks_per_second: u8,
-    ind_time: bool,
-    ind_bit_a: bool,
-    ind_bit_b: bool,
-    ind_error: bool,
 }
 
 impl NPLUtils {
-    pub fn new(tps: u8) -> Self {
+    pub fn new() -> Self {
         Self {
             before_first_edge: true,
             first_minute: true,
             new_minute: false,
+            new_second: false,
             act_len: 0,
             sec_len: 0,
             second: 0,
@@ -55,12 +51,6 @@ impl NPLUtils {
             parity_2: None,
             parity_3: None,
             parity_4: None,
-            frame_counter: 0,
-            ticks_per_second: tps,
-            ind_time: true,
-            ind_bit_a: false,
-            ind_bit_b: false,
-            ind_error: true,
         }
     }
 
@@ -74,9 +64,24 @@ impl NPLUtils {
         self.new_minute
     }
 
+    /// Return if a new second has arrived.
+    pub fn get_new_second(&self) -> bool {
+        self.new_second
+    }
+
     /// Get the second counter.
     pub fn get_second(&self) -> u8 {
         self.second
+    }
+
+    /// Get the value of the current A bit.
+    pub fn get_current_bit_a(&self) -> Option<bool> {
+        self.bit_buffer_a[self.second as usize]
+    }
+
+    /// Get the value of the current B bit.
+    pub fn get_current_bit_b(&self) -> Option<bool> {
+        self.bit_buffer_b[self.second as usize]
     }
 
     /// Get a copy of the date/time structure.
@@ -104,31 +109,6 @@ impl NPLUtils {
         self.parity_4
     }
 
-    /// Get the frame-in-second counter.
-    pub fn get_frame_counter(&self) -> u8 {
-        self.frame_counter
-    }
-
-    /// Return if the time (i.e. new second or minute) indicator is active.
-    pub fn get_ind_time(&self) -> bool {
-        self.ind_time
-    }
-
-    /// Return if the currently received bit A is a 1.
-    pub fn get_ind_bit_a(&self) -> bool {
-        self.ind_bit_a
-    }
-
-    /// Return if the currently received bit B is a 1.
-    pub fn get_ind_bit_b(&self) -> bool {
-        self.ind_bit_b
-    }
-
-    /// Return if there was an error receiving this bit.
-    pub fn get_ind_error(&self) -> bool {
-        self.ind_error
-    }
-
     /**
      * Determine the bit value if a new edge is received. indicates reception errors,
      * and checks if a new minute has started.
@@ -150,38 +130,33 @@ impl NPLUtils {
         if is_low_edge {
             self.bit_buffer_a[self.second as usize] = Some(false);
             self.bit_buffer_b[self.second as usize] = Some(false);
-            /*
-                       if self.frame_counter < 4 * self.ticks_per_second / 10 {
-                           // suppress noise in case a bit got split
-                           self.act_len += t_diff;
-                       }
-            */
+            if false {
+                // suppress noise in case a bit got split
+                self.act_len += t_diff;
+            }
             if self.act_len > ACTIVE_LIMIT {
-                self.ind_bit_a = true;
-                self.bit_buffer_a[self.second as usize] = Some(true);
+                self.bit_buffer_a[self.second as usize] = Some(true); // TODO bit b
                 if self.act_len > 2 * ACTIVE_LIMIT {
-                    self.ind_error = true;
-                    self.bit_buffer_a[self.second as usize] = None;
+                    self.bit_buffer_a[self.second as usize] = None; // TODO bit b
                 }
             }
         } else if self.sec_len > PASSIVE_LIMIT {
-            self.ind_error = true;
+            self.bit_buffer_a[self.second as usize] = None;
+            self.bit_buffer_b[self.second as usize] = None;
             self.act_len = 0;
             self.sec_len = 0;
         } else if self.sec_len > SECOND_LIMIT {
-            self.ind_time = true;
             // self.new_minute = self.sec_len > MINUTE_LIMIT; // TODO
             self.act_len = 0;
             self.sec_len = 0;
             if !self.split_second {
-                self.frame_counter = 0;
+                self.new_second = true; // TODO never reset
             }
             self.split_second = false;
         } else {
             self.split_second = true;
-            // self.bit_buffer_a[self.second as usize] = None; // perhaps?
-            // self.bit_buffer_b[self.second as usize] = None; // perhaps?
-            self.ind_error = true;
+            self.bit_buffer_a[self.second as usize] = None;
+            self.bit_buffer_b[self.second as usize] = None;
         }
     }
 
@@ -215,31 +190,8 @@ impl NPLUtils {
         }
     }
 
-    /// Update the frame counter and the status of the time, bit, and error indicators when a
-    /// new timer tick arrives. Calculate the current date ane time upon a new minute.
-    pub fn handle_new_timer_tick(&mut self) {
-        if self.frame_counter == 0 {
-            self.ind_time = true;
-            self.ind_bit_a = false;
-            self.ind_bit_b = false;
-            self.ind_error = false;
-            if self.new_minute {
-                self.decode_time();
-            }
-        } else if (self.frame_counter == self.ticks_per_second / 10 && !self.new_minute)
-            || (self.frame_counter == 7 * self.ticks_per_second / 10 && self.new_minute)
-        {
-            self.ind_time = false;
-        }
-        if self.frame_counter == self.ticks_per_second {
-            self.frame_counter = 0;
-        } else {
-            self.frame_counter += 1;
-        }
-    }
-
     /// Decode the time broadcast during the last minute, tolerate bad DST status.
-    fn decode_time(&mut self) {
+    pub fn decode_time(&mut self) {
         if !self.first_minute {
             self.radio_datetime.add_minute();
         }
