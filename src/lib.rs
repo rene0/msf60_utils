@@ -240,3 +240,9 @@ impl NPLUtils {
         }
     }
 }
+
+impl Default for NPLUtils {
+    fn default() -> Self {
+        Self::new()
+    }
+}
