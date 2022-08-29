@@ -4,25 +4,26 @@
 
 use radio_datetime_utils::RadioDateTimeUtils;
 
-/// Time in microseconds for a bit to be considered 1
-const ACTIVE_LIMIT: u32 = 150_000;
-/// Minimum amount of time in microseconds between two bits, mostly to deal with noise
-const SECOND_LIMIT: u32 = 950_000;
-#[allow(dead_code)]
-/// Time in microseconds for the minute marker to be detected
-const MINUTE_LIMIT: u32 = 450_000;
+/// Limit for spike detection in microseconds, fine tune
+const SPIKE_LIMIT: u32 = 30_000;
+/// Maximum time in microseconds for a bit to be considered 0 (0/x cases)
+const ACTIVE_0_LIMIT: u32 = 150_000;
+/// Maximum time in microseconds for bit A to be considered 1
+const ACTIVE_A_LIMIT: u32 = 250_000;
+/// Maximum time in microseconds for bit A and B to te considered 1
+const ACTIVE_AB_LIMIT: u32 = 350_000;
+/// Maximum time in microseconds for a minute marker to be detected
+const MINUTE_LIMIT: u32 = 550_000;
+/// Time in microseconds that a seconds takes
+const SECOND: u32 = 1_000_000;
 /// Signal is considered lost after this many microseconds
-const PASSIVE_LIMIT: u32 = 1_500_000;
+const PASSIVE_RUNAWAY: u32 = 1_500_000;
 
 /// NPL decoder class
 pub struct NPLUtils {
-    before_first_edge: bool,
     first_minute: bool,
     new_minute: bool,
     new_second: bool,
-    act_len: u32,
-    sec_len: u32,
-    split_second: bool,
     second: u8,
     bit_buffer_a: [Option<bool>; 60],
     bit_buffer_b: [Option<bool>; 60],
@@ -31,19 +32,19 @@ pub struct NPLUtils {
     parity_2: Option<bool>,
     parity_3: Option<bool>,
     parity_4: Option<bool>,
+    // below for handle_new_edge()
+    before_first_edge: bool,
+    t0: u32,
+    old_t_diff: u32,
 }
 
 impl NPLUtils {
     pub fn new() -> Self {
         Self {
-            before_first_edge: true,
             first_minute: true,
             new_minute: false,
             new_second: false,
-            act_len: 0,
-            sec_len: 0,
             second: 0,
-            split_second: false,
             bit_buffer_a: [None; 60],
             bit_buffer_b: [None; 60],
             radio_datetime: RadioDateTimeUtils::new(0),
@@ -51,6 +52,9 @@ impl NPLUtils {
             parity_2: None,
             parity_3: None,
             parity_4: None,
+            before_first_edge: true,
+            t0: 0,
+            old_t_diff: 0,
         }
     }
 
@@ -113,51 +117,54 @@ impl NPLUtils {
      * Determine the bit value if a new edge is received. indicates reception errors,
      * and checks if a new minute has started.
      *
+     * This function can deal with spikes, which are arbitrarily set to SPIKE_LIMIT milliseconds.
+     *
      * # Arguments
      * * `is_low_edge` - indicates that the edge has gone from high to low (as opposed to
      *                   low-to-high).
-     * * `t0` - time stamp of the previously received edge, in microseconds
-     * * `t1` - time stamp of the currently received edge, in microseconds
+     * * `t` - time stamp of the received edge, in microseconds
      */
-    // FIXME this code is to be tested and will *not* work properly in its current state.
-    pub fn handle_new_edge(&mut self, is_low_edge: bool, t0: u32, t1: u32) {
+    pub fn handle_new_edge(&mut self, is_low_edge: bool, t: u32) {
         if self.before_first_edge {
             self.before_first_edge = false;
+            self.t0 = t;
             return;
         }
-        let t_diff = radio_datetime_utils::time_diff(t0, t1);
-        self.sec_len += t_diff;
+        let t_diff = radio_datetime_utils::time_diff(self.t0, t);
+        if t_diff < SPIKE_LIMIT {
+            return; // random positive or negative spike, ignore
+        }
+        self.new_second = false;
+        self.new_minute = false;
+        self.t0 = t;
         if is_low_edge {
-            self.bit_buffer_a[self.second as usize] = Some(false);
-            self.bit_buffer_b[self.second as usize] = Some(false);
-            if false {
-                // suppress noise in case a bit got split
-                self.act_len += t_diff;
-            }
-            if self.act_len > ACTIVE_LIMIT {
-                self.bit_buffer_a[self.second as usize] = Some(true); // TODO bit b
-                if self.act_len > 2 * ACTIVE_LIMIT {
-                    self.bit_buffer_a[self.second as usize] = None; // TODO bit b
+            if t_diff < ACTIVE_0_LIMIT {
+                if self.old_t_diff > 0 && self.old_t_diff < ACTIVE_0_LIMIT {
+                    self.bit_buffer_a[self.second as usize] = Some(false);
+                    self.bit_buffer_b[self.second as usize] = Some(true);
+                } else if self.old_t_diff == 0 || self.old_t_diff > SECOND - ACTIVE_0_LIMIT {
+                    self.bit_buffer_a[self.second as usize] = Some(false);
+                    self.bit_buffer_b[self.second as usize] = Some(false);
                 }
+            } else if t_diff < ACTIVE_A_LIMIT && self.old_t_diff > SECOND - ACTIVE_A_LIMIT {
+                self.bit_buffer_a[self.second as usize] = Some(true);
+                self.bit_buffer_b[self.second as usize] = Some(false);
+            } else if t_diff < ACTIVE_AB_LIMIT && self.old_t_diff > SECOND - ACTIVE_AB_LIMIT {
+                self.bit_buffer_a[self.second as usize] = Some(true);
+                self.bit_buffer_b[self.second as usize] = Some(true);
+            } else if t_diff < MINUTE_LIMIT && self.old_t_diff > SECOND - MINUTE_LIMIT {
+                self.new_minute = true;
+            } else {
+                self.bit_buffer_a[self.second as usize] = None;
+                self.bit_buffer_b[self.second as usize] = None;
             }
-        } else if self.sec_len > PASSIVE_LIMIT {
-            self.bit_buffer_a[self.second as usize] = None;
-            self.bit_buffer_b[self.second as usize] = None;
-            self.act_len = 0;
-            self.sec_len = 0;
-        } else if self.sec_len > SECOND_LIMIT {
-            // self.new_minute = self.sec_len > MINUTE_LIMIT; // TODO
-            self.act_len = 0;
-            self.sec_len = 0;
-            if !self.split_second {
-                self.new_second = true; // TODO never reset
-            }
-            self.split_second = false;
+        } else if t_diff < PASSIVE_RUNAWAY {
+            self.new_second = true;
         } else {
-            self.split_second = true;
             self.bit_buffer_a[self.second as usize] = None;
             self.bit_buffer_b[self.second as usize] = None;
         }
+        self.old_t_diff = t_diff;
     }
 
     /// Determine the length of this minute in bits.
