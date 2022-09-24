@@ -1,6 +1,7 @@
 //! NPL receiver, e.g. for embedded platforms.
 
-#![no_std]
+//! Build with no_std for embedded platforms.
+#![cfg_attr(not(test), no_std)]
 
 use radio_datetime_utils::RadioDateTimeUtils;
 
@@ -244,5 +245,25 @@ impl NPLUtils {
 impl Default for NPLUtils {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::NPLUtils;
+
+    #[test]
+    fn test_new_edge() {
+        // TODO implement
+    }
+
+    #[test]
+    fn test_decode_time() {
+        // TODO implement
+    }
+
+    #[test]
+    fn test_increase_second() {
+        // TODO implement
     }
 }
