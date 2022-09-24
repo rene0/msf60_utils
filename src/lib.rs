@@ -135,10 +135,10 @@ impl NPLUtils {
         if t_diff < SPIKE_LIMIT {
             return; // random positive or negative spike, ignore
         }
-        self.new_second = false;
         self.new_minute = false;
         self.t0 = t;
         if is_low_edge {
+            self.new_second = false;
             if t_diff < ACTIVE_0_LIMIT {
                 if self.old_t_diff > 0 && self.old_t_diff < ACTIVE_0_LIMIT {
                     self.bit_buffer_a[self.second as usize] = Some(false);
@@ -160,7 +160,7 @@ impl NPLUtils {
                 self.bit_buffer_b[self.second as usize] = None;
             }
         } else if t_diff < PASSIVE_RUNAWAY {
-            self.new_second = true;
+            self.new_second = t_diff > ACTIVE_0_LIMIT;
         } else {
             self.bit_buffer_a[self.second as usize] = None;
             self.bit_buffer_b[self.second as usize] = None;
