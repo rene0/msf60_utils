@@ -1,4 +1,4 @@
-//! NPL receiver for embedded platforms using e.g. a Canaduino V2 receiver.
+//! NPL receiver, e.g. for embedded platforms.
 
 #![no_std]
 
