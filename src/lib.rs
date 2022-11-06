@@ -133,6 +133,8 @@ impl NPLUtils {
         }
         let t_diff = radio_datetime_utils::time_diff(self.t0, t);
         if t_diff < SPIKE_LIMIT {
+            // Shift t0 to deal with a train of spikes adding up to more than `SPIKE_LIMIT` microseconds.
+            self.t0 += t_diff;
             return; // random positive or negative spike, ignore
         }
         self.new_minute = false;
