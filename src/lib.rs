@@ -171,7 +171,7 @@ impl NPLUtils {
     }
 
     /// Determine the length of this minute in bits.
-    pub fn get_minute_length(&self) -> u8 {
+    pub fn get_this_minute_length(&self) -> u8 {
         59 // TODO determine position of 0111_1110 end-of-minute marker and consequently add -1, 0, 1
     }
 
@@ -179,7 +179,7 @@ impl NPLUtils {
     pub fn increase_second(&mut self) {
         if self.new_minute {
             if self.first_minute
-                && self.second == self.get_minute_length()
+                && self.second == self.get_this_minute_length()
                 && self.radio_datetime.get_year().is_some()
                 && self.radio_datetime.get_month().is_some()
                 && self.radio_datetime.get_day().is_some()
@@ -194,7 +194,7 @@ impl NPLUtils {
         } else {
             // wrap in case we missed the minute marker to prevent index-out-of-range
             self.second += 1;
-            if self.second == self.get_minute_length() + 1 {
+            if self.second == self.get_this_minute_length() + 1 {
                 self.second = 0;
             }
         }
@@ -205,7 +205,7 @@ impl NPLUtils {
         if !self.first_minute {
             self.radio_datetime.add_minute();
         }
-        if self.second == self.get_minute_length() {
+        if self.second == self.get_this_minute_length() {
             self.parity_1 =
                 radio_datetime_utils::get_parity(&self.bit_buffer_a, 17, 24, self.bit_buffer_b[54]);
             let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 24, 17);
