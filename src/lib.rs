@@ -118,7 +118,7 @@ impl NPLUtils {
      * Determine the bit value if a new edge is received. indicates reception errors,
      * and checks if a new minute has started.
      *
-     * This function can deal with spikes, which are arbitrarily set to SPIKE_LIMIT milliseconds.
+     * This function can deal with spikes, which are arbitrarily set to `SPIKE_LIMIT` microseconds.
      *
      * # Arguments
      * * `is_low_edge` - indicates that the edge has gone from high to low (as opposed to
