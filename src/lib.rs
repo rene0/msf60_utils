@@ -1,4 +1,4 @@
-//! NPL receiver, e.g. for embedded platforms.
+//! Collection of utilities for NPL receivers.
 
 //! Build with no_std for embedded platforms.
 #![cfg_attr(not(test), no_std)]
