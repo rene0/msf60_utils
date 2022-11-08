@@ -176,10 +176,16 @@ impl NPLUtils {
     }
 
     /// Increase or reset `second` and clear `first_minute` when appropriate.
+    ///
+    /// This method must be called _after_ `decode_time()` and `handle_new_edge()`
     pub fn increase_second(&mut self) {
+        let minute_length = self.get_this_minute_length();
+        // actually length of the next minute, but that is unavailable for NPL.
         if self.new_minute {
             if self.first_minute
-                && self.second == self.get_this_minute_length()
+                && self.second == minute_length
+                // check bit train 0111_1110
+                // check DST is_some()
                 && self.radio_datetime.get_year().is_some()
                 && self.radio_datetime.get_month().is_some()
                 && self.radio_datetime.get_day().is_some()
@@ -192,9 +198,9 @@ impl NPLUtils {
             }
             self.second = 0;
         } else {
-            // wrap in case we missed the minute marker to prevent index-out-of-range
             self.second += 1;
-            if self.second == self.get_this_minute_length() + 1 {
+            // wrap in case we missed the minute marker to prevent index-out-of-range
+            if self.second == minute_length + 1 {
                 self.second = 0;
             }
         }
@@ -265,7 +271,48 @@ mod tests {
     }
 
     #[test]
-    fn test_increase_second() {
-        // TODO implement
+    fn test_increase_second_same_minute_ok() {
+        let mut npl = NPLUtils::default();
+        npl.second = 37;
+        // all date/time values are None
+        npl.increase_second();
+        assert_eq!(npl.first_minute, true);
+        assert_eq!(npl.second, 38);
+    }
+    #[test]
+    fn test_increase_second_same_minute_overflow() {
+        let mut npl = NPLUtils::default();
+        npl.second = 59;
+        // leap second value is None, or 0111_1110 is "in the middle"
+        npl.increase_second();
+        assert_eq!(npl.first_minute, true);
+        assert_eq!(npl.second, 0);
+    }
+    #[test]
+    fn test_increase_second_new_minute_ok() {
+        let mut npl = NPLUtils::default();
+        npl.new_minute = true;
+        npl.second = 59;
+        npl.radio_datetime.set_year(Some(22), true, false);
+        npl.radio_datetime.set_month(Some(10), true, false);
+        npl.radio_datetime.set_weekday(Some(6), true, false);
+        npl.radio_datetime.set_day(Some(22), true, false);
+        npl.radio_datetime.set_hour(Some(12), true, false);
+        npl.radio_datetime.set_minute(Some(59), true, false);
+        npl.radio_datetime.set_dst(Some(true), Some(false), false);
+        // leap second value is None
+        npl.increase_second();
+        assert_eq!(npl.first_minute, false);
+        assert_eq!(npl.second, 0);
+    }
+    #[test]
+    fn test_increase_second_new_minute_none_values() {
+        let mut npl = NPLUtils::default();
+        npl.new_minute = true;
+        npl.second = 59;
+        // all date/time values left None
+        npl.increase_second();
+        assert_eq!(npl.first_minute, true);
+        assert_eq!(npl.second, 0);
     }
 }
