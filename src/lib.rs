@@ -171,7 +171,7 @@ impl NPLUtils {
     }
 
     /// Determine the length of this minute in bits.
-    pub fn get_this_minute_length(&self) -> u8 {
+    pub fn get_minute_length(&self) -> u8 {
         59 // TODO determine position of 0111_1110 end-of-minute marker and consequently add -1, 0, 1
     }
 
@@ -179,8 +179,7 @@ impl NPLUtils {
     ///
     /// This method must be called _after_ `decode_time()` and `handle_new_edge()`
     pub fn increase_second(&mut self) {
-        let minute_length = self.get_this_minute_length();
-        // actually length of the next minute, but that is unavailable for NPL.
+        let minute_length = self.get_minute_length();
         if self.new_minute {
             if self.first_minute
                 && self.second == minute_length
@@ -206,46 +205,62 @@ impl NPLUtils {
         }
     }
 
-    /// Decode the time broadcast during the last minute, tolerate bad DST status.
+    /// Decode the time broadcast during the last minute.
+    ///
+    /// This method must be called _before_ `increase_second()`
     pub fn decode_time(&mut self) {
+        let minute_length = self.get_minute_length();
+        let mut added_minute = false;
         if !self.first_minute {
-            self.radio_datetime.add_minute();
+            added_minute = self.radio_datetime.add_minute();
         }
-        if self.second == self.get_this_minute_length() {
+        if self.second == minute_length {
             self.parity_1 =
                 radio_datetime_utils::get_parity(&self.bit_buffer_a, 17, 24, self.bit_buffer_b[54]);
-            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 24, 17);
-            self.radio_datetime
-                .set_year(tmp0, self.parity_1 == Some(true), !self.first_minute);
+            self.radio_datetime.set_year(
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 24, 17),
+                self.parity_1 == Some(true),
+                added_minute && !self.first_minute,
+            );
 
             self.parity_2 =
                 radio_datetime_utils::get_parity(&self.bit_buffer_a, 25, 35, self.bit_buffer_b[55]);
-            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 29, 25);
-            self.radio_datetime
-                .set_month(tmp0, self.parity_2 == Some(true), !self.first_minute);
-            let tmp2 = radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 35, 30); // day, delayed assignment
+            self.radio_datetime.set_month(
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 29, 25),
+                self.parity_2 == Some(true),
+                added_minute && !self.first_minute,
+            );
 
             self.parity_3 =
                 radio_datetime_utils::get_parity(&self.bit_buffer_a, 36, 38, self.bit_buffer_b[56]);
-            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 38, 36);
-            self.radio_datetime
-                .set_weekday(tmp0, self.parity_3 == Some(true), !self.first_minute);
+            self.radio_datetime.set_weekday(
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 38, 36),
+                self.parity_3 == Some(true),
+                added_minute && !self.first_minute,
+            );
+
             self.radio_datetime.set_day(
-                tmp2,
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 35, 30),
                 self.parity_1 == Some(true)
                     && self.parity_2 == Some(true)
                     && self.parity_3 == Some(true),
-                !self.first_minute,
+                added_minute && !self.first_minute,
             );
 
             self.parity_4 =
                 radio_datetime_utils::get_parity(&self.bit_buffer_a, 39, 51, self.bit_buffer_b[57]);
-            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 44, 39);
-            self.radio_datetime
-                .set_hour(tmp0, self.parity_4 == Some(true), !self.first_minute);
-            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 51, 45);
-            self.radio_datetime
-                .set_minute(tmp0, self.parity_4 == Some(true), !self.first_minute);
+            self.radio_datetime.set_hour(
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 44, 39),
+                self.parity_4 == Some(true),
+                added_minute && !self.first_minute,
+            );
+            self.radio_datetime.set_minute(
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 51, 45),
+                self.parity_4 == Some(true),
+                added_minute && !self.first_minute,
+            );
+
+            self.radio_datetime.bump_minutes_running(); // for future DST decoding
         }
     }
 }
