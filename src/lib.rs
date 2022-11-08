@@ -171,8 +171,9 @@ impl NPLUtils {
     }
 
     /// Determine the length of this minute in bits.
+    // TODO determine position of 0111_1110 end-of-minute marker and consequently add -1, 0, 1
     pub fn get_minute_length(&self) -> u8 {
-        59 // TODO determine position of 0111_1110 end-of-minute marker and consequently add -1, 0, 1
+        59
     }
 
     /// Increase or reset `second` and clear `first_minute` when appropriate.
