@@ -170,10 +170,10 @@ impl NPLUtils {
         self.old_t_diff = t_diff;
     }
 
-    /// Determine the length of this minute in bits.
+    /// Determine the length of this minute in seconds.
     // TODO determine position of 0111_1110 end-of-minute marker and consequently add -1, 0, 1
     pub fn get_minute_length(&self) -> u8 {
-        59
+        60
     }
 
     /// Increase or reset `second` and clear `first_minute` when appropriate.
@@ -298,7 +298,7 @@ mod tests {
     #[test]
     fn test_increase_second_same_minute_overflow() {
         let mut npl = NPLUtils::default();
-        npl.second = 59;
+        npl.second = 60;
         // leap second value is None, or 0111_1110 is "in the middle"
         npl.increase_second();
         assert_eq!(npl.first_minute, true);
@@ -308,7 +308,7 @@ mod tests {
     fn test_increase_second_new_minute_ok() {
         let mut npl = NPLUtils::default();
         npl.new_minute = true;
-        npl.second = 59;
+        npl.second = 60;
         npl.radio_datetime.set_year(Some(22), true, false);
         npl.radio_datetime.set_month(Some(10), true, false);
         npl.radio_datetime.set_weekday(Some(6), true, false);
@@ -325,7 +325,7 @@ mod tests {
     fn test_increase_second_new_minute_none_values() {
         let mut npl = NPLUtils::default();
         npl.new_minute = true;
-        npl.second = 59;
+        npl.second = 60;
         // all date/time values left None
         npl.increase_second();
         assert_eq!(npl.first_minute, true);
