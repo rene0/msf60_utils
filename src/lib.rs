@@ -213,7 +213,7 @@ impl NPLUtils {
         let minute_length = self.get_minute_length();
         let mut added_minute = false;
         if !self.first_minute {
-            added_minute = self.radio_datetime.add_minute(); // TODO needs working DST
+            added_minute = self.radio_datetime.add_minute();
         }
         if self.second == minute_length {
             self.parity_1 =
@@ -261,7 +261,12 @@ impl NPLUtils {
                 added_minute && !self.first_minute,
             );
 
-            // TODO DST for added_minute etc
+            self.radio_datetime.set_dst(
+                self.bit_buffer_b[58],
+                self.bit_buffer_b[53],
+                added_minute && !self.first_minute,
+            );
+
             self.radio_datetime.bump_minutes_running();
         }
     }
@@ -401,7 +406,7 @@ mod tests {
         assert_eq!(npl.parity_4, Some(true));
         assert_eq!(npl.radio_datetime.get_dst(), Some(DST_SUMMER));
         assert_eq!(npl.radio_datetime.get_leap_second(), None);
-        assert_eq!(npl.radio_datetime.get_jump_minute(), true); // FIXME fails "false" because added_minute is false because no DST decoder
+        assert_eq!(npl.radio_datetime.get_jump_minute(), true);
         assert_eq!(npl.radio_datetime.get_jump_hour(), false);
         assert_eq!(npl.radio_datetime.get_jump_weekday(), false);
         assert_eq!(npl.radio_datetime.get_jump_day(), false);
@@ -426,7 +431,7 @@ mod tests {
         npl.bit_buffer_a[31] = None; // None hour
         npl.bit_buffer_a[48] = Some(!npl.bit_buffer_a[48].unwrap());
         npl.decode_time();
-        assert_eq!(npl.radio_datetime.get_minute(), Some(59)); // bad parity // FIXME fails "Some(58)" because added_minute is fails because no DST decoder
+        assert_eq!(npl.radio_datetime.get_minute(), Some(59)); // bad parity
         assert_eq!(npl.radio_datetime.get_hour(), Some(14));
         assert_eq!(npl.radio_datetime.get_weekday(), Some(6)); // broken parity
         assert_eq!(npl.radio_datetime.get_day(), Some(23)); // broken bit
@@ -473,6 +478,8 @@ mod tests {
         npl.bit_buffer_a[44] = Some(true);
         npl.bit_buffer_b[57] = Some(false);
         // which will have a DST change:
+        npl.bit_buffer_b[53] = Some(true);
+        npl.bit_buffer_b[58] = Some(false);
         // leave npl.fist_minute true on purpose to catch minute-length bugs
         npl.decode_time();
         assert_eq!(npl.radio_datetime.get_minute(), Some(0));
