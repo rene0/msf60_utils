@@ -155,6 +155,8 @@ impl NPLUtils {
      *
      * This function can deal with spikes, which are arbitrarily set to `SPIKE_LIMIT` microseconds.
      *
+     * This method must be called _before_ `increase_second()`.
+     *
      * # Arguments
      * * `is_low_edge` - indicates that the edge has gone from high to low (as opposed to
      *                   low-to-high).
@@ -205,7 +207,7 @@ impl NPLUtils {
         self.old_t_diff = t_diff;
     }
 
-    /// Determine the length of this minute in seconds.
+    /// Determine the length of this minute in bits.
     // TODO determine position of 0111_1110 end-of-minute marker and consequently add -1, 0, 1
     pub fn get_minute_length(&self) -> u8 {
         60
@@ -213,7 +215,8 @@ impl NPLUtils {
 
     /// Increase or reset `second` and clear `first_minute` when appropriate.
     ///
-    /// This method must be called _after_ `decode_time()` and `handle_new_edge()`
+    /// This method must be called _after_ `decode_time()`, `handle_new_edge()`,
+    /// `set_current_bit_a()`, `set_current_bit_b()`, and `force_new_minute()`.
     pub fn increase_second(&mut self) {
         let minute_length = self.get_minute_length();
         if self.new_minute {
