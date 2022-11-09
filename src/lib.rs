@@ -69,6 +69,15 @@ impl NPLUtils {
         self.new_minute
     }
 
+    /// Force the arrival of a new minute.
+    ///
+    /// This could be useful when reading from a log file.
+    ///
+    /// This method must be called _before_ `increase_second()`
+    pub fn force_new_minute(&mut self) {
+        self.new_minute = true;
+    }
+
     /// Return if a new second has arrived.
     pub fn get_new_second(&self) -> bool {
         self.new_second
@@ -87,6 +96,32 @@ impl NPLUtils {
     /// Get the value of the current B bit.
     pub fn get_current_bit_b(&self) -> Option<bool> {
         self.bit_buffer_b[self.second as usize]
+    }
+
+    /// Set the value of the current A bit and clear the flag indicating arrival of a new minute.
+    ///
+    /// This could be useful when reading from a log file.
+    ///
+    /// This method must be called _before_ `increase_second()`.
+    ///
+    /// # Arguments
+    /// * `value` - the value to set the current bit to
+    pub fn set_current_bit_a(&mut self, value: Option<bool>) {
+        self.bit_buffer_a[self.second as usize] = value;
+        self.new_minute = false;
+    }
+
+    /// Set the value of the current B bit and clear the flag indicating arrival of a new minute.
+    ///
+    /// This could be useful when reading from a log file.
+    ///
+    /// This method must be called _before_ `increase_second()`.
+    ///
+    /// # Arguments
+    /// * `value` - the value to set the current bit to
+    pub fn set_current_bit_b(&mut self, value: Option<bool>) {
+        self.bit_buffer_b[self.second as usize] = value;
+        self.new_minute = false;
     }
 
     /// Get a copy of the date/time structure.
