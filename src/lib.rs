@@ -15,8 +15,6 @@ const ACTIVE_A_LIMIT: u32 = 250_000;
 const ACTIVE_AB_LIMIT: u32 = 350_000;
 /// Maximum time in microseconds for a minute marker to be detected
 const MINUTE_LIMIT: u32 = 550_000;
-/// Time in microseconds that a seconds takes
-const SECOND: u32 = 1_000_000;
 /// Signal is considered lost after this many microseconds
 const PASSIVE_RUNAWAY: u32 = 1_500_000;
 
@@ -182,17 +180,17 @@ impl NPLUtils {
                 if self.old_t_diff > 0 && self.old_t_diff < ACTIVE_0_LIMIT {
                     self.bit_buffer_a[self.second as usize] = Some(false);
                     self.bit_buffer_b[self.second as usize] = Some(true);
-                } else if self.old_t_diff == 0 || self.old_t_diff > SECOND - ACTIVE_0_LIMIT {
+                } else if self.old_t_diff == 0 || self.old_t_diff > 1_000_000 - ACTIVE_0_LIMIT {
                     self.bit_buffer_a[self.second as usize] = Some(false);
                     self.bit_buffer_b[self.second as usize] = Some(false);
                 }
-            } else if t_diff < ACTIVE_A_LIMIT && self.old_t_diff > SECOND - ACTIVE_A_LIMIT {
+            } else if t_diff < ACTIVE_A_LIMIT && self.old_t_diff > 1_000_000 - ACTIVE_A_LIMIT {
                 self.bit_buffer_a[self.second as usize] = Some(true);
                 self.bit_buffer_b[self.second as usize] = Some(false);
-            } else if t_diff < ACTIVE_AB_LIMIT && self.old_t_diff > SECOND - ACTIVE_AB_LIMIT {
+            } else if t_diff < ACTIVE_AB_LIMIT && self.old_t_diff > 1_000_000 - ACTIVE_AB_LIMIT {
                 self.bit_buffer_a[self.second as usize] = Some(true);
                 self.bit_buffer_b[self.second as usize] = Some(true);
-            } else if t_diff < MINUTE_LIMIT && self.old_t_diff > SECOND - MINUTE_LIMIT {
+            } else if t_diff < MINUTE_LIMIT && self.old_t_diff > 1_000_000 - MINUTE_LIMIT {
                 self.new_minute = true;
             } else {
                 self.bit_buffer_a[self.second as usize] = None;
