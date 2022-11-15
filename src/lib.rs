@@ -319,7 +319,7 @@ impl Default for NPLUtils {
 #[cfg(test)]
 mod tests {
     use crate::NPLUtils;
-    use radio_datetime_utils::{DST_ANNOUNCED, DST_PROCESSED, DST_SUMMER};
+    use radio_datetime_utils::{time_diff, DST_ANNOUNCED, DST_PROCESSED, DST_SUMMER};
 
     const BIT_BUFFER_A: [bool; 60] = [
         true, // begin-of-minute marker
@@ -351,8 +351,237 @@ mod tests {
         false, // unused
     ];
     #[test]
-    fn test_new_edge() {
-        // TODO implement
+    fn test_new_edge_bit_0_0() {
+        const EDGE_BUFFER: [(bool, u32); 4] = [
+            // Some(false,false) bit value
+            (!false, 422_994_439),
+            (!true, 423_907_610),
+            (!false, 423_997_265),
+            (!true, 424_906_368),
+        ];
+        let mut npl = NPLUtils::default();
+        assert_eq!(npl.before_first_edge, true);
+        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(npl.before_first_edge, false);
+        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+
+        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(npl.new_second, true);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), None); // not yet determined, passive part
+        assert_eq!(npl.get_current_bit_b(), None); // not yet determined, passive part
+
+        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(npl.new_second, false);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(false)); // 114_295 microseconds
+        assert_eq!(npl.get_current_bit_b(), Some(false)); // 114_295 microseconds
+
+        // passive part of second must keep the bit value
+        npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[3].1); // longer than a spike
+        assert_eq!(npl.new_second, true);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(false)); // keep bit value
+        assert_eq!(npl.get_current_bit_b(), Some(false)); // keep bit value
+    }
+    #[test]
+    fn test_new_edge_bit_0_1() {
+        // TODO manually think of something as this is not currently broadcast or wait until 2023-08
+    }
+    #[test]
+    fn test_new_edge_bit_1_0() {
+        const EDGE_BUFFER: [(bool, u32); 4] = [
+            // Some(true,false) bit value
+            (!false, 413_999_083),
+            (!true, 414_909_075),
+            (!false, 415_090_038),
+            (!true, 415_908_781),
+        ];
+        let mut npl = NPLUtils::default();
+        assert_eq!(npl.before_first_edge, true);
+        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(npl.before_first_edge, false);
+        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+
+        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(npl.new_second, true);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), None); // not yet determined, passive part
+        assert_eq!(npl.get_current_bit_b(), None); // not yet determined, passive part
+
+        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(npl.new_second, false);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(true)); // 216_872 microseconds
+        assert_eq!(npl.get_current_bit_b(), Some(false)); // 216_872 microseconds
+
+        // passive part of second must keep the bit value
+        npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[3].1); // longer than a spike
+        assert_eq!(npl.new_second, true);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(true)); // keep bit value
+        assert_eq!(npl.get_current_bit_b(), Some(false)); // keep bit value
+    }
+    #[test]
+    fn test_new_edge_bit_1_1() {
+        const EDGE_BUFFER: [(bool, u32); 4] = [
+            // Some(true,true) bit value
+            (!false, 415_090_038),
+            (!true, 415_908_781),
+            (!false, 416_194_383),
+            (!true, 416_901_482),
+        ];
+        let mut npl = NPLUtils::default();
+        assert_eq!(npl.before_first_edge, true);
+        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(npl.before_first_edge, false);
+        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+
+        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(npl.new_second, true);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), None); // not yet determined, passive part
+        assert_eq!(npl.get_current_bit_b(), None); // not yet determined, passive part
+
+        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(npl.new_second, false);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(true)); // 216_872 microseconds
+        assert_eq!(npl.get_current_bit_b(), Some(true)); // 216_872 microseconds
+
+        // passive part of second must keep the bit value
+        npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[3].1); // longer than a spike
+        assert_eq!(npl.new_second, true);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(true)); // keep bit value
+        assert_eq!(npl.get_current_bit_b(), Some(true)); // keep bit value
+    }
+    #[test]
+    fn test_new_edge_minute() {
+        const EDGE_BUFFER: [(bool, u32); 3] = [
+            // new minute, (true,true) bit value
+            (!false, 420_994_620),
+            (!true, 421_906_680),
+            (!false, 422_389_442), // 482_762 us
+        ];
+        let mut npl = NPLUtils::default();
+        assert_eq!(npl.before_first_edge, true);
+        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(npl.before_first_edge, false);
+        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+
+        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(npl.new_second, true);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), None); // not yet determined
+        assert_eq!(npl.get_current_bit_b(), None); // not yet determined
+
+        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1); // new minute
+        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(npl.new_second, false);
+        assert_eq!(npl.new_minute, true);
+        assert_eq!(npl.get_current_bit_a(), Some(true));
+        assert_eq!(npl.get_current_bit_b(), Some(true));
+    }
+    #[test]
+    fn test_new_edge_active_runaway() {
+        const EDGE_BUFFER: [(bool, u32); 3] = [
+            // active runaway (broken bit)
+            (!false, 417_195_653),
+            (!true, 417_908_323),
+            (!false, 419_193_216),
+        ];
+        let mut npl = NPLUtils::default();
+        assert_eq!(npl.before_first_edge, true);
+        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(npl.before_first_edge, false);
+        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+
+        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(npl.new_second, true);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), None); // not yet determined, passive part
+        assert_eq!(npl.get_current_bit_b(), None); // not yet determined, passive part
+
+        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(npl.new_second, false);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), None);
+        assert_eq!(npl.get_current_bit_b(), None);
+    }
+    #[test]
+    fn test_new_edge_passive_runaway() {
+        // TODO no data yet???
+    }
+    #[test]
+    fn test_new_edge_spikes() {
+        const EDGE_BUFFER: [(bool, u32); 8] = [
+            // spikes
+            (!false,900_122_127),
+            (!true,901_052_140), // 930_013
+            (!false, 901_226_910), // 174_770 (1,0)
+            (!true, 902_069_956), // 843_046
+            (!false, 902_085_860), // 15_904
+            (!true, 902_105_980), // 20_120
+            (!false, 902_115_859), // 9_879
+            (!true, 903_057_346), // 941_487
+        ];
+        let mut npl = NPLUtils::default();
+        assert_eq!(npl.before_first_edge, true);
+        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(npl.before_first_edge, false);
+        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+
+        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(npl.new_second, true);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), None); // not yet determined
+        assert_eq!(npl.get_current_bit_b(), None); // not yet determined
+
+        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(npl.new_second, false);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(true));
+        assert_eq!(npl.get_current_bit_b(), Some(false));
+
+        npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1); // first significant edge
+        assert_eq!(npl.t0, EDGE_BUFFER[3].1); // longer than a spike
+        assert_eq!(npl.new_second, true);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(true)); // keep value
+        assert_eq!(npl.get_current_bit_b(), Some(false)); // keep value
+
+        // Feed a bunch of spikes of less than SPIKE_LIMIT us, nothing should happen
+        let mut spike = npl.t0;
+        for i in 4..=6 {
+            spike += time_diff(EDGE_BUFFER[i - 1].1, EDGE_BUFFER[i].1);
+            npl.handle_new_edge(EDGE_BUFFER[i].0, EDGE_BUFFER[i].1);
+            assert_eq!(npl.t0, spike);
+            assert_eq!(npl.new_second, true);
+            assert_eq!(npl.new_minute, false);
+            assert_eq!(npl.get_current_bit_a(), Some(true));
+            assert_eq!(npl.get_current_bit_b(), Some(false));
+        }
+        npl.handle_new_edge(EDGE_BUFFER[7].0, EDGE_BUFFER[7].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[7].1); // longer than a spike
+        assert_eq!(npl.new_second, true); // regular new second
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(true)); // keep value
+        assert_eq!(npl.get_current_bit_b(), Some(false)); // keep value
     }
 
     #[test]
