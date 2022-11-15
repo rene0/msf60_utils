@@ -195,6 +195,7 @@ impl NPLUtils {
                 self.bit_buffer_a[0] = Some(true);
                 self.bit_buffer_b[0] = Some(true);
             } else {
+                // active runaway
                 self.bit_buffer_a[self.second as usize] = None;
                 self.bit_buffer_b[self.second as usize] = None;
             }
