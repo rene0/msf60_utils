@@ -356,9 +356,9 @@ mod tests {
         const EDGE_BUFFER: [(bool, u32); 4] = [
             // Some(false,false) bit value
             (!false, 422_994_439), // 0
-            (!true, 423_907_610), // 913_171
+            (!true, 423_907_610),  // 913_171
             (!false, 423_997_265), // 89_655
-            (!true, 424_906_368), // 909_103
+            (!true, 424_906_368),  // 909_103
         ];
         let mut npl = NPLUtils::default();
         assert_eq!(npl.before_first_edge, true);
@@ -393,12 +393,12 @@ mod tests {
         // TODO replace with real data once (0,1) bit pairs are broadcast again, around 2023-08
         const EDGE_BUFFER: [(bool, u32); 6] = [
             // Some(false,false) bit value
-            (!false, 0), // 0
-            (!true, 920_000), // 920_000
+            (!false, 0),         // 0
+            (!true, 920_000),    // 920_000
             (!false, 1_030_000), // 110_000
-            (!true, 1_128_000), // 98_000
+            (!true, 1_128_000),  // 98_000
             (!false, 1_232_000), // 104_000
-            (!true, 1_896_000), // 644_000
+            (!true, 1_896_000),  // 644_000
         ];
         let mut npl = NPLUtils::default();
         assert_eq!(npl.before_first_edge, true);
@@ -450,9 +450,9 @@ mod tests {
         const EDGE_BUFFER: [(bool, u32); 4] = [
             // Some(true,false) bit value
             (!false, 413_999_083), // 0
-            (!true, 414_909_075), // 918_992
+            (!true, 414_909_075),  // 918_992
             (!false, 415_090_038), // 180_963
-            (!true, 415_908_781), // 818_743
+            (!true, 415_908_781),  // 818_743
         ];
         let mut npl = NPLUtils::default();
         assert_eq!(npl.before_first_edge, true);
@@ -487,9 +487,9 @@ mod tests {
         const EDGE_BUFFER: [(bool, u32); 4] = [
             // Some(true,true) bit value
             (!false, 415_090_038), // 0
-            (!true, 415_908_781), // 818_743
+            (!true, 415_908_781),  // 818_743
             (!false, 416_194_383), // 285_602
-            (!true, 416_901_482), // 707_099
+            (!true, 416_901_482),  // 707_099
         ];
         let mut npl = NPLUtils::default();
         assert_eq!(npl.before_first_edge, true);
@@ -524,7 +524,7 @@ mod tests {
         const EDGE_BUFFER: [(bool, u32); 3] = [
             // new minute, (true,true) bit value
             (!false, 420_994_620), // 0
-            (!true, 421_906_680), // 912_060
+            (!true, 421_906_680),  // 912_060
             (!false, 422_389_442), // 482_762
         ];
         let mut npl = NPLUtils::default();
@@ -552,7 +552,7 @@ mod tests {
         const EDGE_BUFFER: [(bool, u32); 3] = [
             // active runaway (broken bit)
             (!false, 417_195_653), // 0
-            (!true, 417_908_323), // 712_670
+            (!true, 417_908_323),  // 712_670
             (!false, 419_193_216), // 1_284_893
         ];
         let mut npl = NPLUtils::default();
@@ -577,12 +577,12 @@ mod tests {
     }
     #[test]
     fn test_new_edge_passive_runaway() {
-        const EDGE_BUFFER:[(bool, u32);4] = [
+        const EDGE_BUFFER: [(bool, u32); 4] = [
             // passive runaway (transmitter outage?)
-            (!false,897_105_780), // 0
-            (!true,898_042_361), // 936_581
-            (!false,898_110_362), // 68_001 (0,0) bit
-            (!true,900_067_737), // 1_957_375 passive runaway
+            (!false, 897_105_780), // 0
+            (!true, 898_042_361),  // 936_581
+            (!false, 898_110_362), // 68_001 (0,0) bit
+            (!true, 900_067_737),  // 1_957_375 passive runaway
         ];
         let mut npl = NPLUtils::default();
         assert_eq!(npl.before_first_edge, true);
@@ -616,14 +616,14 @@ mod tests {
     fn test_new_edge_spikes() {
         const EDGE_BUFFER: [(bool, u32); 8] = [
             // spikes
-            (!false,900_122_127), // 0
-            (!true,901_052_140), // 930_013
+            (!false, 900_122_127), // 0
+            (!true, 901_052_140),  // 930_013
             (!false, 901_226_910), // 174_770
-            (!true, 902_069_956), // 843_046
+            (!true, 902_069_956),  // 843_046
             (!false, 902_085_860), // 15_904
-            (!true, 902_105_980), // 20_120
+            (!true, 902_105_980),  // 20_120
             (!false, 902_115_859), // 9_879
-            (!true, 903_057_346), // 941_487
+            (!true, 903_057_346),  // 941_487
         ];
         let mut npl = NPLUtils::default();
         assert_eq!(npl.before_first_edge, true);
