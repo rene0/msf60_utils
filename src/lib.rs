@@ -577,7 +577,40 @@ mod tests {
     }
     #[test]
     fn test_new_edge_passive_runaway() {
-        // TODO no data yet???
+        const EDGE_BUFFER:[(bool, u32);4] = [
+            // passive runaway (transmitter outage?)
+            (!false,897_105_780), // 0
+            (!true,898_042_361), // 936_581
+            (!false,898_110_362), // 68_001 (0,0) bit
+            (!true,900_067_737), // 1_957_375 passive runaway
+        ];
+        let mut npl = NPLUtils::default();
+        assert_eq!(npl.before_first_edge, true);
+        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(npl.before_first_edge, false);
+        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+
+        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(npl.new_second, true);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), None); // not yet determined, passive part
+        assert_eq!(npl.get_current_bit_b(), None); // not yet determined, passive part
+
+        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(npl.new_second, false);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(false));
+        assert_eq!(npl.get_current_bit_b(), Some(false));
+
+        // passive part of second must keep the bit value
+        npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[3].1); // longer than a spike
+        assert_eq!(npl.new_second, false);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), None);
+        assert_eq!(npl.get_current_bit_b(), None);
     }
     #[test]
     fn test_new_edge_spikes() {
