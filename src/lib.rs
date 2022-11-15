@@ -377,8 +377,8 @@ mod tests {
         assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
         assert_eq!(npl.new_second, false);
         assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(false)); // 114_295 microseconds
-        assert_eq!(npl.get_current_bit_b(), Some(false)); // 114_295 microseconds
+        assert_eq!(npl.get_current_bit_a(), Some(false));
+        assert_eq!(npl.get_current_bit_b(), Some(false));
 
         // passive part of second must keep the bit value
         npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
@@ -418,8 +418,8 @@ mod tests {
         assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
         assert_eq!(npl.new_second, false);
         assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(true)); // 216_872 microseconds
-        assert_eq!(npl.get_current_bit_b(), Some(false)); // 216_872 microseconds
+        assert_eq!(npl.get_current_bit_a(), Some(true));
+        assert_eq!(npl.get_current_bit_b(), Some(false));
 
         // passive part of second must keep the bit value
         npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
@@ -455,8 +455,8 @@ mod tests {
         assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
         assert_eq!(npl.new_second, false);
         assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(true)); // 216_872 microseconds
-        assert_eq!(npl.get_current_bit_b(), Some(true)); // 216_872 microseconds
+        assert_eq!(npl.get_current_bit_a(), Some(true));
+        assert_eq!(npl.get_current_bit_b(), Some(true));
 
         // passive part of second must keep the bit value
         npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
