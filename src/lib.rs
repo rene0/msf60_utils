@@ -390,7 +390,60 @@ mod tests {
     }
     #[test]
     fn test_new_edge_bit_0_1() {
-        // TODO manually think of something as this is not currently broadcast or wait until 2023-08
+        // TODO replace with real data once (0,1) bit pairs are broadcast again, around 2023-08
+        const EDGE_BUFFER: [(bool, u32); 6] = [
+            // Some(false,false) bit value
+            (!false, 0), // 0
+            (!true, 920_000), // 920_000
+            (!false, 1_030_000), // 110_000
+            (!true, 1_128_000), // 98_000
+            (!false, 1_232_000), // 104_000
+            (!true, 1_896_000), // 644_000
+        ];
+        let mut npl = NPLUtils::default();
+        assert_eq!(npl.before_first_edge, true);
+        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(npl.before_first_edge, false);
+        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+
+        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(npl.new_second, true);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), None); // not yet determined, passive part
+        assert_eq!(npl.get_current_bit_b(), None); // not yet determined, passive part
+
+        // active signal part one, so we should get an intermediate (0,0) bit pair here:
+        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(npl.new_second, false);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(false));
+        assert_eq!(npl.get_current_bit_b(), Some(false));
+
+        // passive signal part one (up to `ACTIVE_0_LIMIT` or 150_000 microseconds), keep bit values:
+        npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[3].1); // longer than a spike
+        assert_eq!(npl.new_second, false);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(false));
+        assert_eq!(npl.get_current_bit_b(), Some(false));
+
+        // active signal part two, get the (0,1) bit pair:
+        npl.handle_new_edge(EDGE_BUFFER[4].0, EDGE_BUFFER[4].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[4].1); // longer than a spike
+        assert_eq!(npl.new_second, false);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(false));
+        assert_eq!(npl.get_current_bit_b(), Some(true));
+
+        // passive signal part two, keep the bit values:
+        npl.handle_new_edge(EDGE_BUFFER[5].0, EDGE_BUFFER[5].1);
+        assert_eq!(npl.t0, EDGE_BUFFER[5].1); // longer than a spike
+        assert_eq!(npl.new_second, true);
+        assert_eq!(npl.new_minute, false);
+        assert_eq!(npl.get_current_bit_a(), Some(false)); // keep bit value
+        assert_eq!(npl.get_current_bit_b(), Some(true)); // keep bit value
     }
     #[test]
     fn test_new_edge_bit_1_0() {
