@@ -127,12 +127,12 @@ impl NPLUtils {
         self.radio_datetime
     }
 
-    /// Get the minute year bit, Some(true) means OK.
+    /// Get the year parity bit, Some(true) means OK.
     pub fn get_parity_1(&self) -> Option<bool> {
         self.parity_1
     }
 
-    /// Get the hour month/day bit, Some(true) means OK.
+    /// Get the month/day parity bit, Some(true) means OK.
     pub fn get_parity_2(&self) -> Option<bool> {
         self.parity_2
     }
