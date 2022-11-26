@@ -224,7 +224,7 @@ impl NPLUtils {
             if self.first_minute
                 && self.second == minute_length
                 // check bit train 0111_1110
-                // check DST is_some()
+                && self.radio_datetime.get_dst().is_some()
                 && self.radio_datetime.get_year().is_some()
                 && self.radio_datetime.get_month().is_some()
                 && self.radio_datetime.get_day().is_some()
