@@ -180,11 +180,11 @@ impl NPLUtils {
                 if self.old_t_diff > 0 && self.old_t_diff < ACTIVE_0_LIMIT {
                     self.bit_buffer_a[self.second as usize] = Some(false);
                     self.bit_buffer_b[self.second as usize] = Some(true);
-                } else if self.old_t_diff == 0 || self.old_t_diff > 1_000_000 - ACTIVE_0_LIMIT {
+                } else if self.old_t_diff > 1_000_000 - MINUTE_LIMIT {
                     self.bit_buffer_a[self.second as usize] = Some(false);
                     self.bit_buffer_b[self.second as usize] = Some(false);
                 }
-            } else if t_diff < ACTIVE_A_LIMIT && self.old_t_diff > 1_000_000 - ACTIVE_A_LIMIT {
+            } else if t_diff < ACTIVE_A_LIMIT && self.old_t_diff > 1_000_000 - ACTIVE_AB_LIMIT {
                 self.bit_buffer_a[self.second as usize] = Some(true);
                 self.bit_buffer_b[self.second as usize] = Some(false);
             } else if t_diff < ACTIVE_AB_LIMIT && self.old_t_diff > 1_000_000 - ACTIVE_AB_LIMIT {
@@ -195,7 +195,7 @@ impl NPLUtils {
                 self.bit_buffer_a[0] = Some(true);
                 self.bit_buffer_b[0] = Some(true);
             } else {
-                // active runaway
+                // active runaway or first low edge
                 self.bit_buffer_a[self.second as usize] = None;
                 self.bit_buffer_b[self.second as usize] = None;
             }
