@@ -200,7 +200,7 @@ impl NPLUtils {
                 self.bit_buffer_b[self.second as usize] = None;
             }
         } else if t_diff < PASSIVE_RUNAWAY {
-            self.new_second = t_diff > ACTIVE_0_LIMIT;
+            self.new_second = t_diff > 1_000_000 - MINUTE_LIMIT;
         } else {
             self.bit_buffer_a[self.second as usize] = None;
             self.bit_buffer_b[self.second as usize] = None;
