@@ -190,7 +190,7 @@ impl NPLUtils {
             } else if t_diff < ACTIVE_AB_LIMIT && self.old_t_diff > 1_000_000 - ACTIVE_AB_LIMIT {
                 self.bit_buffer_a[self.second as usize] = Some(true);
                 self.bit_buffer_b[self.second as usize] = Some(true);
-            } else if t_diff < MINUTE_LIMIT && self.old_t_diff > 1_000_000 - MINUTE_LIMIT {
+            } else if t_diff < MINUTE_LIMIT && self.old_t_diff > 1_000_000 - ACTIVE_0_LIMIT {
                 self.new_minute = true;
                 self.bit_buffer_a[0] = Some(true);
                 self.bit_buffer_b[0] = Some(true);
