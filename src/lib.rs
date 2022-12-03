@@ -211,7 +211,7 @@ impl NPLUtils {
         self.old_t_diff = t_diff;
     }
 
-    /// Determine the length of this minute in bits.
+    /// Determine the length of this minute in seconds.
     // TODO determine position of 0111_1110 end-of-minute marker and consequently add -1, 0, 1
     pub fn get_minute_length(&self) -> u8 {
         60
