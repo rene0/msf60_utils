@@ -21,6 +21,28 @@ const PASSIVE_RUNAWAY: u32 = 1_500_000;
 /// Size of bit buffer in bits plus one spare because we cannot know which method accessing the buffer is called after increase_second().
 const BIT_BUFFER_SIZE: usize = 61 + 1;
 
+/// Decode the unary value of the given slice.
+/// A 0 bit cannot be followed by a 1 bit.
+///
+/// # Arguments
+/// * `bit_buffer` - buffer containing to calculate the value from
+/// * `start` - start bit position
+/// * `stop` - stop bit position
+fn get_unary(bit_buffer: &[Option<bool>], start: usize, stop: usize) -> Option<i8> {
+    let mut sum = 0;
+    let mut old_bit = None;
+    for bit in &bit_buffer[start..=stop] {
+        (*bit)?;
+        let s_bit = bit.unwrap();
+        if s_bit && old_bit == Some(false) {
+            return None;
+        }
+        sum += s_bit as i8;
+        old_bit = *bit;
+    }
+    Some(sum)
+}
+
 /// NPL decoder class
 pub struct NPLUtils {
     first_minute: bool,
@@ -34,6 +56,7 @@ pub struct NPLUtils {
     parity_2: Option<bool>,
     parity_3: Option<bool>,
     parity_4: Option<bool>,
+    dut1: Option<i8>, // DUT1 in deci-seconds
     // below for handle_new_edge()
     before_first_edge: bool,
     t0: u32,
@@ -54,6 +77,7 @@ impl NPLUtils {
             parity_2: None,
             parity_3: None,
             parity_4: None,
+            dut1: None,
             before_first_edge: true,
             t0: 0,
             old_t_diff: 0,
@@ -148,6 +172,11 @@ impl NPLUtils {
     /// Get the hour/minute parity bit, Some(true) means OK.
     pub fn get_parity_4(&self) -> Option<bool> {
         self.parity_4
+    }
+
+    /// Get the value of DUT1 (UT1 - UTC) in deci-seconds.
+    pub fn get_dut1(&self) -> Option<i8> {
+        self.dut1
     }
 
     /**
@@ -309,6 +338,14 @@ impl NPLUtils {
                 added_minute && !self.first_minute,
             );
 
+            self.dut1 = None;
+            if let Some(dut1p) = get_unary(&self.bit_buffer_b, 1, 8) {
+                // bit 16b is dropped in case of a negative leap second
+                let stop = if minute_length == 59 { 15 } else { 16 };
+                if let Some(dut1n) = get_unary(&self.bit_buffer_b, 9, stop) {
+                    self.dut1 = Some(dut1p - dut1n);
+                }
+            }
             self.radio_datetime.bump_minutes_running();
         }
     }
