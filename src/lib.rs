@@ -18,14 +18,17 @@ const MINUTE_LIMIT: u32 = 550_000;
 /// Signal is considered lost after this many microseconds
 const PASSIVE_RUNAWAY: u32 = 1_500_000;
 
+/// Size of bit buffer in bits.
+const BIT_BUFFER_SIZE: usize = 61;
+
 /// NPL decoder class
 pub struct NPLUtils {
     first_minute: bool,
     new_minute: bool,
     new_second: bool,
     second: u8,
-    bit_buffer_a: [Option<bool>; 61],
-    bit_buffer_b: [Option<bool>; 61],
+    bit_buffer_a: [Option<bool>; BIT_BUFFER_SIZE],
+    bit_buffer_b: [Option<bool>; BIT_BUFFER_SIZE],
     radio_datetime: RadioDateTimeUtils,
     parity_1: Option<bool>,
     parity_2: Option<bool>,
@@ -44,8 +47,8 @@ impl NPLUtils {
             new_minute: false,
             new_second: false,
             second: 0,
-            bit_buffer_a: [None; 61],
-            bit_buffer_b: [None; 61],
+            bit_buffer_a: [None; BIT_BUFFER_SIZE],
+            bit_buffer_b: [None; BIT_BUFFER_SIZE],
             radio_datetime: RadioDateTimeUtils::new(0),
             parity_1: None,
             parity_2: None,
@@ -239,7 +242,7 @@ impl NPLUtils {
         } else {
             self.second += 1;
             // wrap in case we missed the minute marker to prevent index-out-of-range
-            if self.second == minute_length + 1 {
+            if self.second == minute_length + 1 || (self.second as usize) == BIT_BUFFER_SIZE {
                 self.second = 0;
             }
         }
