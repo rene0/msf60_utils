@@ -343,7 +343,11 @@ impl NPLUtils {
                 // bit 16b is dropped in case of a negative leap second
                 let stop = if minute_length == 59 { 15 } else { 16 };
                 if let Some(dut1n) = get_unary(&self.bit_buffer_b, 9, stop) {
-                    self.dut1 = Some(dut1p - dut1n);
+                    self.dut1 = if dut1p * dut1n == 0 {
+                        Some(dut1p - dut1n)
+                    } else {
+                        None
+                    };
                 }
             }
             self.radio_datetime.bump_minutes_running();
