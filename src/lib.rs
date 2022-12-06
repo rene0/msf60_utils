@@ -28,7 +28,7 @@ const BIT_BUFFER_SIZE: usize = 61 + 1;
 /// * `bit_buffer` - buffer containing to calculate the value from
 /// * `start` - start bit position
 /// * `stop` - stop bit position
-fn get_unary(bit_buffer: &[Option<bool>], start: usize, stop: usize) -> Option<i8> {
+fn get_unary_value(bit_buffer: &[Option<bool>], start: usize, stop: usize) -> Option<i8> {
     let mut sum = 0;
     let mut old_bit = None;
     for bit in &bit_buffer[start..=stop] {
@@ -339,10 +339,10 @@ impl NPLUtils {
             );
 
             self.dut1 = None;
-            if let Some(dut1p) = get_unary(&self.bit_buffer_b, 1, 8) {
+            if let Some(dut1p) = get_unary_value(&self.bit_buffer_b, 1, 8) {
                 // bit 16b is dropped in case of a negative leap second
                 let stop = if minute_length == 59 { 15 } else { 16 };
-                if let Some(dut1n) = get_unary(&self.bit_buffer_b, 9, stop) {
+                if let Some(dut1n) = get_unary_value(&self.bit_buffer_b, 9, stop) {
                     self.dut1 = if dut1p * dut1n == 0 {
                         Some(dut1p - dut1n)
                     } else {
@@ -350,6 +350,7 @@ impl NPLUtils {
                     };
                 }
             }
+
             self.radio_datetime.bump_minutes_running();
         }
     }
