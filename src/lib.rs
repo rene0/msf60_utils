@@ -364,7 +364,7 @@ impl Default for NPLUtils {
 
 #[cfg(test)]
 mod tests {
-    use crate::NPLUtils;
+    use crate::{get_unary_value, NPLUtils};
     use radio_datetime_utils::{time_diff, DST_ANNOUNCED, DST_PROCESSED, DST_SUMMER};
 
     const BIT_BUFFER_A: [bool; 60] = [
@@ -382,7 +382,7 @@ mod tests {
     const BIT_BUFFER_B: [bool; 60] = [
         true, // begin-of-minute marker,
         false, false, false, false, false, false, false, false, // DUT1 positive
-        false, false, false, false, false, false, false, false, // DUT1 negative
+        true, true, false, false, false, false, false, false, // DUT1 negative (-2)
         false, false, false, false, false, false, false, false, // unused 17-24
         false, false, false, false, false, false, false, false, // unused 25-32
         false, false, false, false, false, false, false, false, // unused 33-40
@@ -396,6 +396,34 @@ mod tests {
         true,  // summer time active
         false, // unused
     ];
+
+    #[test]
+    fn test_get_unary_value_all_0() {
+        const UNARY_BUFFER: [Option<bool>; 4] =
+            [Some(false), Some(false), Some(false), Some(false)];
+        assert_eq!(get_unary_value(&UNARY_BUFFER, 0, 3), Some(0));
+    }
+    #[test]
+    fn test_get_unary_value_all_1() {
+        const UNARY_BUFFER: [Option<bool>; 4] = [Some(true), Some(true), Some(true), Some(true)];
+        assert_eq!(get_unary_value(&UNARY_BUFFER, 0, 3), Some(4));
+    }
+    #[test]
+    fn test_get_unary_value_middle() {
+        const UNARY_BUFFER: [Option<bool>; 4] = [Some(true), Some(true), Some(false), Some(false)];
+        assert_eq!(get_unary_value(&UNARY_BUFFER, 0, 3), Some(2));
+    }
+    #[test]
+    fn test_get_unary_value_1_after_0() {
+        const UNARY_BUFFER: [Option<bool>; 4] = [Some(false), Some(false), Some(true), Some(false)];
+        assert_eq!(get_unary_value(&UNARY_BUFFER, 0, 3), None);
+    }
+    #[test]
+    fn test_get_unary_value_invalid_none() {
+        const UNARY_BUFFER: [Option<bool>; 4] = [Some(true), Some(true), None, Some(false)];
+        assert_eq!(get_unary_value(&UNARY_BUFFER, 0, 3), None);
+    }
+
     #[test]
     fn test_new_edge_bit_0_0() {
         const EDGE_BUFFER: [(bool, u32); 4] = [
@@ -751,6 +779,7 @@ mod tests {
         assert_eq!(npl.parity_4, Some(true));
         assert_eq!(npl.radio_datetime.get_dst(), Some(DST_SUMMER));
         assert_eq!(npl.radio_datetime.get_leap_second(), None); // not available
+        assert_eq!(npl.dut1, Some(-2));
     }
     #[test]
     fn test_decode_time_complete_minute_bad_bits() {
@@ -762,6 +791,7 @@ mod tests {
             npl.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
         // introduce some distortions:
+        npl.bit_buffer_b[1] = Some(true); // now both 1-8 and 9-16 are positive, which is an error
         npl.bit_buffer_a[31] = None; // None hour
         npl.bit_buffer_a[48] = Some(!npl.bit_buffer_a[48].unwrap());
         npl.decode_time();
@@ -777,6 +807,7 @@ mod tests {
         assert_eq!(npl.parity_4, Some(false)); // bad parity
         assert_eq!(npl.radio_datetime.get_dst(), Some(DST_SUMMER));
         assert_eq!(npl.radio_datetime.get_leap_second(), None);
+        assert_eq!(npl.dut1, None);
     }
     #[test]
     fn continue_decode_time_complete_minute_jumped_values() {
