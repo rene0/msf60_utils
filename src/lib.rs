@@ -18,7 +18,8 @@ const MINUTE_LIMIT: u32 = 550_000;
 /// Signal is considered lost after this many microseconds
 const PASSIVE_RUNAWAY: u32 = 1_500_000;
 
-/// Size of bit buffer in bits plus one spare because we cannot know which method accessing the buffer is called after increase_second().
+/// Size of bit buffer in seconds plus one spare because we cannot know
+/// which method accessing the buffer is called after increase_second().
 const BIT_BUFFER_SIZE: usize = 61 + 1;
 
 /// Decode the unary value of the given slice.
