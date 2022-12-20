@@ -5,7 +5,7 @@
 
 use radio_datetime_utils::RadioDateTimeUtils;
 
-/// Limit for spike detection in microseconds, fine tune
+/// Default upper limit for spike detection in microseconds
 const SPIKE_LIMIT: u32 = 30_000;
 /// Maximum time in microseconds for a bit to be considered 0 (0/x cases)
 const ACTIVE_0_LIMIT: u32 = 150_000;
@@ -62,6 +62,7 @@ pub struct NPLUtils {
     before_first_edge: bool,
     t0: u32,
     old_t_diff: u32,
+    spike_limit: u32,
 }
 
 impl NPLUtils {
@@ -82,6 +83,7 @@ impl NPLUtils {
             before_first_edge: true,
             t0: 0,
             old_t_diff: 0,
+            spike_limit: SPIKE_LIMIT,
         }
     }
 
@@ -180,11 +182,26 @@ impl NPLUtils {
         self.dut1
     }
 
+    /// Return the current spike limit in microseconds.
+    pub fn get_spike_limit(&self) -> u32 {
+        self.spike_limit
+    }
+
+    /// Set the new spike limit in microseconds, [0(off)..ACTIVE_0_LIMIT)
+    ///
+    /// # Arguments
+    /// * `value` - the value to set the spike limit to.
+    pub fn set_spike_limit(&mut self, value: u32) {
+        if value < ACTIVE_0_LIMIT {
+            self.spike_limit = value;
+        }
+    }
+
     /**
      * Determine the bit value if a new edge is received. indicates reception errors,
      * and checks if a new minute has started.
      *
-     * This function can deal with spikes, which are arbitrarily set to `SPIKE_LIMIT` microseconds.
+     * This function can deal with spikes, which are arbitrarily set to `spike_limit` microseconds.
      *
      * This method must be called _before_ `increase_second()`.
      *
@@ -200,8 +217,8 @@ impl NPLUtils {
             return;
         }
         let t_diff = radio_datetime_utils::time_diff(self.t0, t);
-        if t_diff < SPIKE_LIMIT {
-            // Shift t0 to deal with a train of spikes adding up to more than `SPIKE_LIMIT` microseconds.
+        if t_diff < self.spike_limit {
+            // Shift t0 to deal with a train of spikes adding up to more than `spike_limit` microseconds.
             self.t0 += t_diff;
             return; // random positive or negative spike, ignore
         }
@@ -726,7 +743,7 @@ mod tests {
         assert_eq!(npl.get_current_bit_a(), Some(true)); // keep value
         assert_eq!(npl.get_current_bit_b(), Some(false)); // keep value
 
-        // Feed a bunch of spikes of less than SPIKE_LIMIT us, nothing should happen
+        // Feed a bunch of spikes of less than spike_limit us, nothing should happen
         let mut spike = npl.t0;
         for i in 4..=6 {
             spike += time_diff(EDGE_BUFFER[i - 1].1, EDGE_BUFFER[i].1);
