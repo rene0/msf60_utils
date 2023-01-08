@@ -382,8 +382,7 @@ impl Default for NPLUtils {
 
 #[cfg(test)]
 mod tests {
-    use crate::{get_unary_value, NPLUtils};
-    use radio_datetime_utils::{time_diff, DST_ANNOUNCED, DST_PROCESSED, DST_SUMMER};
+    use super::*;
 
     const BIT_BUFFER_A: [bool; 60] = [
         true, // begin-of-minute marker
@@ -746,7 +745,7 @@ mod tests {
         // Feed a bunch of spikes of less than spike_limit us, nothing should happen
         let mut spike = npl.t0;
         for i in 4..=6 {
-            spike += time_diff(EDGE_BUFFER[i - 1].1, EDGE_BUFFER[i].1);
+            spike += radio_datetime_utils::time_diff(EDGE_BUFFER[i - 1].1, EDGE_BUFFER[i].1);
             npl.handle_new_edge(EDGE_BUFFER[i].0, EDGE_BUFFER[i].1);
             assert_eq!(npl.t0, spike);
             assert_eq!(npl.new_second, true);
@@ -795,7 +794,10 @@ mod tests {
         assert_eq!(npl.parity_2, Some(true));
         assert_eq!(npl.parity_3, Some(true));
         assert_eq!(npl.parity_4, Some(true));
-        assert_eq!(npl.radio_datetime.get_dst(), Some(DST_SUMMER));
+        assert_eq!(
+            npl.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
         assert_eq!(npl.radio_datetime.get_leap_second(), None); // not available
         assert_eq!(npl.dut1, Some(-2));
     }
@@ -823,7 +825,10 @@ mod tests {
         assert_eq!(npl.parity_2, None); // broken bit
         assert_eq!(npl.parity_3, Some(true));
         assert_eq!(npl.parity_4, Some(false)); // bad parity
-        assert_eq!(npl.radio_datetime.get_dst(), Some(DST_SUMMER));
+        assert_eq!(
+            npl.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
         assert_eq!(npl.radio_datetime.get_leap_second(), None);
         assert_eq!(npl.dut1, None);
     }
@@ -852,7 +857,10 @@ mod tests {
         assert_eq!(npl.parity_2, Some(true));
         assert_eq!(npl.parity_3, Some(true));
         assert_eq!(npl.parity_4, Some(true));
-        assert_eq!(npl.radio_datetime.get_dst(), Some(DST_SUMMER));
+        assert_eq!(
+            npl.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
         assert_eq!(npl.radio_datetime.get_leap_second(), None);
         assert_eq!(npl.radio_datetime.get_jump_minute(), true);
         assert_eq!(npl.radio_datetime.get_jump_hour(), false);
@@ -889,7 +897,10 @@ mod tests {
         assert_eq!(npl.parity_2, None); // broken bit
         assert_eq!(npl.parity_3, Some(true));
         assert_eq!(npl.parity_4, Some(false)); // bad parity
-        assert_eq!(npl.radio_datetime.get_dst(), Some(DST_SUMMER));
+        assert_eq!(
+            npl.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
         assert_eq!(npl.radio_datetime.get_leap_second(), None);
         assert_eq!(npl.radio_datetime.get_jump_minute(), false);
         assert_eq!(npl.radio_datetime.get_jump_hour(), false);
@@ -916,7 +927,7 @@ mod tests {
         assert_eq!(npl.radio_datetime.get_minute(), Some(59));
         assert_eq!(
             npl.radio_datetime.get_dst(),
-            Some(DST_ANNOUNCED | DST_SUMMER)
+            Some(radio_datetime_utils::DST_ANNOUNCED | radio_datetime_utils::DST_SUMMER)
         );
         // next minute and hour:
         npl.bit_buffer_a[45] = Some(false);
@@ -932,7 +943,10 @@ mod tests {
         npl.decode_time();
         assert_eq!(npl.radio_datetime.get_minute(), Some(0));
         assert_eq!(npl.radio_datetime.get_hour(), Some(15));
-        assert_eq!(npl.radio_datetime.get_dst(), Some(DST_PROCESSED)); // DST flipped off
+        assert_eq!(
+            npl.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_PROCESSED)
+        ); // DST flipped off
     }
 
     #[test]
