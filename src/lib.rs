@@ -3,7 +3,9 @@
 //! Build with no_std for embedded platforms.
 #![cfg_attr(not(test), no_std)]
 
-use radio_datetime_utils::RadioDateTimeUtils;
+use radio_datetime_utils::{RadioDateTimeUtils, radio_datetime_helpers};
+
+pub mod npl_helpers;
 
 /// Default upper limit for spike detection in microseconds
 const SPIKE_LIMIT: u32 = 30_000;
@@ -21,28 +23,6 @@ const PASSIVE_RUNAWAY: u32 = 1_500_000;
 /// Size of bit buffer in seconds plus one spare because we cannot know
 /// which method accessing the buffer is called after increase_second().
 const BIT_BUFFER_SIZE: usize = 61 + 1;
-
-/// Decode the unary value of the given slice.
-/// A 0 bit cannot be followed by a 1 bit.
-///
-/// # Arguments
-/// * `bit_buffer` - buffer containing to calculate the value from
-/// * `start` - start bit position
-/// * `stop` - stop bit position
-fn get_unary_value(bit_buffer: &[Option<bool>], start: usize, stop: usize) -> Option<i8> {
-    let mut sum = 0;
-    let mut old_bit = None;
-    for bit in &bit_buffer[start..=stop] {
-        (*bit)?;
-        let s_bit = bit.unwrap();
-        if s_bit && old_bit == Some(false) {
-            return None;
-        }
-        sum += s_bit as i8;
-        old_bit = *bit;
-    }
-    Some(sum)
-}
 
 /// NPL decoder class
 pub struct NPLUtils {
@@ -216,7 +196,7 @@ impl NPLUtils {
             self.t0 = t;
             return;
         }
-        let t_diff = radio_datetime_utils::time_diff(self.t0, t);
+        let t_diff = radio_datetime_helpers::time_diff(self.t0, t);
         if t_diff < self.spike_limit {
             // Shift t0 to deal with a train of spikes adding up to more than `spike_limit` microseconds.
             self.t0 += t_diff;
@@ -306,31 +286,31 @@ impl NPLUtils {
         }
         if self.second == minute_length {
             self.parity_1 =
-                radio_datetime_utils::get_parity(&self.bit_buffer_a, 17, 24, self.bit_buffer_b[54]);
+                radio_datetime_helpers::get_parity(&self.bit_buffer_a, 17, 24, self.bit_buffer_b[54]);
             self.radio_datetime.set_year(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 24, 17),
+                radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 24, 17),
                 self.parity_1 == Some(true),
                 added_minute && !self.first_minute,
             );
 
             self.parity_2 =
-                radio_datetime_utils::get_parity(&self.bit_buffer_a, 25, 35, self.bit_buffer_b[55]);
+                radio_datetime_helpers::get_parity(&self.bit_buffer_a, 25, 35, self.bit_buffer_b[55]);
             self.radio_datetime.set_month(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 29, 25),
+                radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 29, 25),
                 self.parity_2 == Some(true),
                 added_minute && !self.first_minute,
             );
 
             self.parity_3 =
-                radio_datetime_utils::get_parity(&self.bit_buffer_a, 36, 38, self.bit_buffer_b[56]);
+                radio_datetime_helpers::get_parity(&self.bit_buffer_a, 36, 38, self.bit_buffer_b[56]);
             self.radio_datetime.set_weekday(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 38, 36),
+                radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 38, 36),
                 self.parity_3 == Some(true),
                 added_minute && !self.first_minute,
             );
 
             self.radio_datetime.set_day(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 35, 30),
+                radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 35, 30),
                 self.parity_1 == Some(true)
                     && self.parity_2 == Some(true)
                     && self.parity_3 == Some(true),
@@ -338,14 +318,14 @@ impl NPLUtils {
             );
 
             self.parity_4 =
-                radio_datetime_utils::get_parity(&self.bit_buffer_a, 39, 51, self.bit_buffer_b[57]);
+                radio_datetime_helpers::get_parity(&self.bit_buffer_a, 39, 51, self.bit_buffer_b[57]);
             self.radio_datetime.set_hour(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 44, 39),
+                radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 44, 39),
                 self.parity_4 == Some(true),
                 added_minute && !self.first_minute,
             );
             self.radio_datetime.set_minute(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer_a, 51, 45),
+                radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 51, 45),
                 self.parity_4 == Some(true),
                 added_minute && !self.first_minute,
             );
@@ -357,10 +337,10 @@ impl NPLUtils {
             );
 
             self.dut1 = None;
-            if let Some(dut1p) = get_unary_value(&self.bit_buffer_b, 1, 8) {
+            if let Some(dut1p) = npl_helpers::get_unary_value(&self.bit_buffer_b, 1, 8) {
                 // bit 16b is dropped in case of a negative leap second
                 let stop = if minute_length == 59 { 15 } else { 16 };
-                if let Some(dut1n) = get_unary_value(&self.bit_buffer_b, 9, stop) {
+                if let Some(dut1n) = npl_helpers::get_unary_value(&self.bit_buffer_b, 9, stop) {
                     self.dut1 = if dut1p * dut1n == 0 {
                         Some(dut1p - dut1n)
                     } else {
@@ -413,33 +393,6 @@ mod tests {
         true,  // summer time active
         false, // unused
     ];
-
-    #[test]
-    fn test_get_unary_value_all_0() {
-        const UNARY_BUFFER: [Option<bool>; 4] =
-            [Some(false), Some(false), Some(false), Some(false)];
-        assert_eq!(get_unary_value(&UNARY_BUFFER, 0, 3), Some(0));
-    }
-    #[test]
-    fn test_get_unary_value_all_1() {
-        const UNARY_BUFFER: [Option<bool>; 4] = [Some(true), Some(true), Some(true), Some(true)];
-        assert_eq!(get_unary_value(&UNARY_BUFFER, 0, 3), Some(4));
-    }
-    #[test]
-    fn test_get_unary_value_middle() {
-        const UNARY_BUFFER: [Option<bool>; 4] = [Some(true), Some(true), Some(false), Some(false)];
-        assert_eq!(get_unary_value(&UNARY_BUFFER, 0, 3), Some(2));
-    }
-    #[test]
-    fn test_get_unary_value_1_after_0() {
-        const UNARY_BUFFER: [Option<bool>; 4] = [Some(false), Some(false), Some(true), Some(false)];
-        assert_eq!(get_unary_value(&UNARY_BUFFER, 0, 3), None);
-    }
-    #[test]
-    fn test_get_unary_value_invalid_none() {
-        const UNARY_BUFFER: [Option<bool>; 4] = [Some(true), Some(true), None, Some(false)];
-        assert_eq!(get_unary_value(&UNARY_BUFFER, 0, 3), None);
-    }
 
     #[test]
     fn test_new_edge_bit_0_0() {
@@ -745,7 +698,7 @@ mod tests {
         // Feed a bunch of spikes of less than spike_limit us, nothing should happen
         let mut spike = npl.t0;
         for i in 4..=6 {
-            spike += radio_datetime_utils::time_diff(EDGE_BUFFER[i - 1].1, EDGE_BUFFER[i].1);
+            spike += radio_datetime_helpers::time_diff(EDGE_BUFFER[i - 1].1, EDGE_BUFFER[i].1);
             npl.handle_new_edge(EDGE_BUFFER[i].0, EDGE_BUFFER[i].1);
             assert_eq!(npl.t0, spike);
             assert_eq!(npl.new_second, true);
