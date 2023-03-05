@@ -3,7 +3,7 @@
 //! Build with no_std for embedded platforms.
 #![cfg_attr(not(test), no_std)]
 
-use radio_datetime_utils::{RadioDateTimeUtils, radio_datetime_helpers};
+use radio_datetime_utils::{radio_datetime_helpers, RadioDateTimeUtils};
 
 pub mod npl_helpers;
 
@@ -283,24 +283,36 @@ impl NPLUtils {
             added_minute = self.radio_datetime.add_minute();
         }
         if self.second == minute_length {
-            self.parity_1 =
-                radio_datetime_helpers::get_parity(&self.bit_buffer_a, 17, 24, self.bit_buffer_b[54]);
+            self.parity_1 = radio_datetime_helpers::get_parity(
+                &self.bit_buffer_a,
+                17,
+                24,
+                self.bit_buffer_b[54],
+            );
             self.radio_datetime.set_year(
                 radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 24, 17),
                 self.parity_1 == Some(true),
                 added_minute && !self.first_minute,
             );
 
-            self.parity_2 =
-                radio_datetime_helpers::get_parity(&self.bit_buffer_a, 25, 35, self.bit_buffer_b[55]);
+            self.parity_2 = radio_datetime_helpers::get_parity(
+                &self.bit_buffer_a,
+                25,
+                35,
+                self.bit_buffer_b[55],
+            );
             self.radio_datetime.set_month(
                 radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 29, 25),
                 self.parity_2 == Some(true),
                 added_minute && !self.first_minute,
             );
 
-            self.parity_3 =
-                radio_datetime_helpers::get_parity(&self.bit_buffer_a, 36, 38, self.bit_buffer_b[56]);
+            self.parity_3 = radio_datetime_helpers::get_parity(
+                &self.bit_buffer_a,
+                36,
+                38,
+                self.bit_buffer_b[56],
+            );
             self.radio_datetime.set_weekday(
                 radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 38, 36),
                 self.parity_3 == Some(true),
@@ -315,8 +327,12 @@ impl NPLUtils {
                 added_minute && !self.first_minute,
             );
 
-            self.parity_4 =
-                radio_datetime_helpers::get_parity(&self.bit_buffer_a, 39, 51, self.bit_buffer_b[57]);
+            self.parity_4 = radio_datetime_helpers::get_parity(
+                &self.bit_buffer_a,
+                39,
+                51,
+                self.bit_buffer_b[57],
+            );
             self.radio_datetime.set_hour(
                 radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 44, 39),
                 self.parity_4 == Some(true),
