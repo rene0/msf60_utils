@@ -241,10 +241,30 @@ impl NPLUtils {
         60
     }
 
+    /// Return if the end-of-minute marker (0111_1110) is present at the end of the A bits.
+    ///
+    /// This method must be called _before_ `increase_second()`
+    pub fn end_of_minute_marker_present(&self) -> bool {
+        if self.second < 8 {
+            return false; // not enough bits to test
+        }
+        const MARKER: [bool; 8] = [false, true, true, true, true, true, true, false];
+        for (idx, bit) in self.bit_buffer_a[(self.second - 8) as usize..=(self.second - 1) as usize]
+            .iter()
+            .enumerate()
+        {
+            if bit.is_none() || *bit != Some(MARKER[idx]) {
+                return false;
+            }
+        }
+        true
+    }
+
     /// Increase or reset `second` and clear `first_minute` when appropriate.
     ///
     /// This method must be called _after_ `decode_time()`, `handle_new_edge()`,
-    /// `set_current_bit_a()`, `set_current_bit_b()`, and `force_new_minute()`.
+    /// `set_current_bit_a()`, `set_current_bit_b()`, `end_of_minute_marker_present()`
+    /// and `force_new_minute()`.
     pub fn increase_second(&mut self) {
         let minute_length = self.get_minute_length();
         if self.new_minute {
@@ -387,7 +407,7 @@ mod tests {
         true, true, false, // Saturday
         false, true, false, true, false, false, // hour 14
         true, false, true, true, false, false, false, // minute 58
-        false, true, true, true, true, true, true, false, // bit train
+        false, true, true, true, true, true, true, false, // end-of-minute marker
     ];
     const BIT_BUFFER_B: [bool; 60] = [
         true, // begin-of-minute marker,
@@ -725,6 +745,35 @@ mod tests {
         assert_eq!(npl.new_minute, false);
         assert_eq!(npl.get_current_bit_a(), Some(true)); // keep value
         assert_eq!(npl.get_current_bit_b(), Some(false)); // keep value
+    }
+
+    #[test]
+    fn test_eom_marker_too_short() {
+        let mut npl = NPLUtils::default();
+        npl.second = 5; // something less than 8
+        for b in 0..=5 {
+            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+        }
+        assert_eq!(npl.end_of_minute_marker_present(), false);
+    }
+    #[test]
+    fn test_eom_marker_absent() {
+        let mut npl = NPLUtils::default();
+        npl.second = 60;
+        for b in 0..=59 {
+            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+        }
+        npl.bit_buffer_a[57] = None; // introduce an error
+        assert_eq!(npl.end_of_minute_marker_present(), false);
+    }
+    #[test]
+    fn test_eom_marker_present() {
+        let mut npl = NPLUtils::default();
+        npl.second = 60;
+        for b in 0..=59 {
+            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+        }
+        assert_eq!(npl.end_of_minute_marker_present(), true);
     }
 
     #[test]
