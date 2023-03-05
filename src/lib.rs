@@ -269,8 +269,8 @@ impl NPLUtils {
         let minute_length = self.get_minute_length();
         if self.new_minute {
             if self.first_minute
-                && self.second == minute_length
-                // check bit train 0111_1110
+                && (59..=61).contains(&minute_length)
+                && self.end_of_minute_marker_present()
                 && self.radio_datetime.get_dst().is_some()
                 && self.radio_datetime.get_year().is_some()
                 && self.radio_datetime.get_month().is_some()
@@ -987,6 +987,10 @@ mod tests {
         let mut npl = NPLUtils::default();
         npl.new_minute = true;
         npl.second = 60;
+        assert_eq!(npl.get_minute_length(), npl.second);
+        for b in 52..=59 {
+            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+        }
         npl.radio_datetime.set_year(Some(22), true, false);
         npl.radio_datetime.set_month(Some(10), true, false);
         npl.radio_datetime.set_weekday(Some(6), true, false);
