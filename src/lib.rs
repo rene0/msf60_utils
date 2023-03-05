@@ -792,7 +792,7 @@ mod tests {
     fn test_eom_marker_absent() {
         let mut npl = NPLUtils::default();
         npl.second = 60;
-        for b in 0..=59 {
+        for b in 52..=59 {
             npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
         npl.bit_buffer_a[57] = None; // introduce an error
@@ -802,7 +802,7 @@ mod tests {
     fn test_eom_marker_present() {
         let mut npl = NPLUtils::default();
         npl.second = 60;
-        for b in 0..=59 {
+        for b in 52..=59 {
             npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
         assert_eq!(npl.end_of_minute_marker_present(), true);
