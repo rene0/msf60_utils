@@ -239,18 +239,28 @@ impl NPLUtils {
 
     /// Determine the length of this minute in seconds.
     pub fn get_minute_length(&self) -> u8 {
-        60
+        if (59..=61).contains(&self.second) && self.end_of_minute_marker_present(false) {
+            self.second
+        } else if (self.second == 60) && self.end_of_minute_marker_present(true) {
+            61
+        } else {
+            60
+        }
     }
 
     /// Return if the end-of-minute marker (0111_1110) is present at the end of the A bits.
     ///
     /// This method must be called _before_ `increase_second()`
-    pub fn end_of_minute_marker_present(&self) -> bool {
+    ///
+    /// # Arguments
+    /// * `look_ahead` - look ahead one second to check for a positive leap second
+    pub fn end_of_minute_marker_present(&self, look_ahead: bool) -> bool {
         if self.second < 8 {
             return false; // not enough bits to test
         }
         const MARKER: [bool; 8] = [false, true, true, true, true, true, true, false];
-        for (idx, bit) in self.bit_buffer_a[(self.second - 8) as usize..=(self.second - 1) as usize]
+        for (idx, bit) in self.bit_buffer_a[(self.second - 8 + look_ahead as u8) as usize
+            ..=(self.second - 1 + look_ahead as u8) as usize]
             .iter()
             .enumerate()
         {
@@ -270,8 +280,7 @@ impl NPLUtils {
         let minute_length = self.get_minute_length();
         if self.new_minute {
             if self.first_minute
-                && (59..=61).contains(&minute_length)
-                && self.end_of_minute_marker_present()
+                && self.second == minute_length
                 && self.radio_datetime.get_dst().is_some()
                 && self.radio_datetime.get_year().is_some()
                 && self.radio_datetime.get_month().is_some()
@@ -302,13 +311,11 @@ impl NPLUtils {
         if !self.first_minute {
             added_minute = self.radio_datetime.add_minute();
         }
-        if (minute_length - 1..minute_length + 1).contains(&self.second)
-            && self.end_of_minute_marker_present()
-        {
-            let offset: isize = match self.second.cmp(&minute_length) {
-                Ordering::Less => -1,
+        if self.second == minute_length {
+            let offset: isize = match 60.cmp(&minute_length) {
+                Ordering::Less => 1,
                 Ordering::Equal => 0,
-                Ordering::Greater => 1,
+                Ordering::Greater => -1,
             };
             self.parity_1 = radio_datetime_helpers::get_parity(
                 &self.bit_buffer_a,
@@ -786,7 +793,7 @@ mod tests {
         for b in 0..=5 {
             npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
-        assert_eq!(npl.end_of_minute_marker_present(), false);
+        assert_eq!(npl.end_of_minute_marker_present(false), false);
     }
     #[test]
     fn test_eom_marker_absent() {
@@ -796,7 +803,17 @@ mod tests {
             npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
         npl.bit_buffer_a[57] = None; // introduce an error
-        assert_eq!(npl.end_of_minute_marker_present(), false);
+        assert_eq!(npl.end_of_minute_marker_present(false), false);
+    }
+    #[test]
+    fn test_eom_marker_absent_ahead() {
+        let mut npl = NPLUtils::default();
+        npl.second = 60;
+        for b in 52..=59 {
+            npl.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
+        }
+        npl.bit_buffer_a[57] = None; // introduce an error
+        assert_eq!(npl.end_of_minute_marker_present(true), false);
     }
     #[test]
     fn test_eom_marker_present() {
@@ -805,7 +822,16 @@ mod tests {
         for b in 52..=59 {
             npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
-        assert_eq!(npl.end_of_minute_marker_present(), true);
+        assert_eq!(npl.end_of_minute_marker_present(false), true);
+    }
+    #[test]
+    fn test_eom_marker_present_ahead() {
+        let mut npl = NPLUtils::default();
+        npl.second = 60;
+        for b in 52..=59 {
+            npl.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
+        }
+        assert_eq!(npl.end_of_minute_marker_present(true), true);
     }
 
     #[test]
