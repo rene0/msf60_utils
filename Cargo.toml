@@ -10,4 +10,4 @@ description = "NPL receiver for embedded platforms."
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-radio_datetime_utils = "0.4.2"
+radio_datetime_utils = "0.5.0"
