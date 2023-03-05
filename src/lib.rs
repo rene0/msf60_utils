@@ -875,6 +875,74 @@ mod tests {
         assert_eq!(npl.dut1, Some(-2));
     }
     #[test]
+    fn test_decode_time_complete_minute_ok_negative_leap_second() {
+        let mut npl = NPLUtils::default();
+        npl.second = 59;
+        for b in 0..=15 {
+            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            npl.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+        }
+        // bit 16 removed
+        for b in 17..=59 {
+            npl.bit_buffer_a[b - 1] = Some(BIT_BUFFER_A[b]);
+            npl.bit_buffer_b[b - 1] = Some(BIT_BUFFER_B[b]);
+        }
+        assert_eq!(npl.get_minute_length(), npl.second);
+        npl.decode_time();
+        // we should have a valid decoding:
+        assert_eq!(npl.radio_datetime.get_minute(), Some(58));
+        assert_eq!(npl.radio_datetime.get_hour(), Some(14));
+        assert_eq!(npl.radio_datetime.get_weekday(), Some(6));
+        assert_eq!(npl.radio_datetime.get_day(), Some(23));
+        assert_eq!(npl.radio_datetime.get_month(), Some(10));
+        assert_eq!(npl.radio_datetime.get_year(), Some(22));
+        assert_eq!(npl.parity_1, Some(true));
+        assert_eq!(npl.parity_2, Some(true));
+        assert_eq!(npl.parity_3, Some(true));
+        assert_eq!(npl.parity_4, Some(true));
+        assert_eq!(
+            npl.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
+        assert_eq!(npl.radio_datetime.get_leap_second(), None); // not available
+        assert_eq!(npl.dut1, Some(-2));
+    }
+    #[test]
+    fn test_decode_time_complete_minute_ok_positive_leap_second() {
+        let mut npl = NPLUtils::default();
+        npl.second = 61;
+        for b in 0..=16 {
+            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            npl.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+        }
+        // insert the positive leap second, left None on purpose (it should not affect decoding)
+        npl.bit_buffer_a[17] = None;
+        npl.bit_buffer_b[17] = None;
+        for b in 17..=59 {
+            npl.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
+            npl.bit_buffer_b[b + 1] = Some(BIT_BUFFER_B[b]);
+        }
+        assert_eq!(npl.get_minute_length(), npl.second);
+        npl.decode_time();
+        // we should have a valid decoding:
+        assert_eq!(npl.radio_datetime.get_minute(), Some(58));
+        assert_eq!(npl.radio_datetime.get_hour(), Some(14));
+        assert_eq!(npl.radio_datetime.get_weekday(), Some(6));
+        assert_eq!(npl.radio_datetime.get_day(), Some(23));
+        assert_eq!(npl.radio_datetime.get_month(), Some(10));
+        assert_eq!(npl.radio_datetime.get_year(), Some(22));
+        assert_eq!(npl.parity_1, Some(true));
+        assert_eq!(npl.parity_2, Some(true));
+        assert_eq!(npl.parity_3, Some(true));
+        assert_eq!(npl.parity_4, Some(true));
+        assert_eq!(
+            npl.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
+        assert_eq!(npl.radio_datetime.get_leap_second(), None); // not available
+        assert_eq!(npl.dut1, Some(-2));
+    }
+    #[test]
     fn test_decode_time_complete_minute_bad_bits() {
         let mut npl = NPLUtils::default();
         npl.second = 60;
