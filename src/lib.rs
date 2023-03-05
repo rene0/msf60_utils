@@ -3,6 +3,7 @@
 //! Build with no_std for embedded platforms.
 #![cfg_attr(not(test), no_std)]
 
+use core::cmp::Ordering;
 use radio_datetime_utils::{radio_datetime_helpers, RadioDateTimeUtils};
 
 pub mod npl_helpers;
@@ -301,45 +302,68 @@ impl NPLUtils {
         if !self.first_minute {
             added_minute = self.radio_datetime.add_minute();
         }
-        if self.second == minute_length {
+        if (minute_length - 1..minute_length + 1).contains(&self.second)
+            && self.end_of_minute_marker_present()
+        {
+            let offset: isize = match self.second.cmp(&minute_length) {
+                Ordering::Less => -1,
+                Ordering::Equal => 0,
+                Ordering::Greater => 1,
+            };
             self.parity_1 = radio_datetime_helpers::get_parity(
                 &self.bit_buffer_a,
-                17,
-                24,
-                self.bit_buffer_b[54],
+                (17 + offset) as usize,
+                (24 + offset) as usize,
+                self.bit_buffer_b[(54 + offset) as usize],
             );
             self.radio_datetime.set_year(
-                radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 24, 17),
+                radio_datetime_helpers::get_bcd_value(
+                    &self.bit_buffer_a,
+                    (24 + offset) as usize,
+                    (17 + offset) as usize,
+                ),
                 self.parity_1 == Some(true),
                 added_minute && !self.first_minute,
             );
 
             self.parity_2 = radio_datetime_helpers::get_parity(
                 &self.bit_buffer_a,
-                25,
-                35,
-                self.bit_buffer_b[55],
+                (25 + offset) as usize,
+                (35 + offset) as usize,
+                self.bit_buffer_b[(55 + offset) as usize],
             );
             self.radio_datetime.set_month(
-                radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 29, 25),
+                radio_datetime_helpers::get_bcd_value(
+                    &self.bit_buffer_a,
+                    (29 + offset) as usize,
+                    (25 + offset) as usize,
+                ),
                 self.parity_2 == Some(true),
                 added_minute && !self.first_minute,
             );
 
             self.parity_3 = radio_datetime_helpers::get_parity(
                 &self.bit_buffer_a,
-                36,
-                38,
-                self.bit_buffer_b[56],
+                (36 + offset) as usize,
+                (38 + offset) as usize,
+                self.bit_buffer_b[(56 + offset) as usize],
             );
             self.radio_datetime.set_weekday(
-                radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 38, 36),
+                radio_datetime_helpers::get_bcd_value(
+                    &self.bit_buffer_a,
+                    (38 + offset) as usize,
+                    (36 + offset) as usize,
+                ),
                 self.parity_3 == Some(true),
                 added_minute && !self.first_minute,
             );
 
             self.radio_datetime.set_day(
-                radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 35, 30),
+                radio_datetime_helpers::get_bcd_value(
+                    &self.bit_buffer_a,
+                    (35 + offset) as usize,
+                    (30 + offset) as usize,
+                ),
                 self.parity_1 == Some(true)
                     && self.parity_2 == Some(true)
                     && self.parity_3 == Some(true),
@@ -348,31 +372,39 @@ impl NPLUtils {
 
             self.parity_4 = radio_datetime_helpers::get_parity(
                 &self.bit_buffer_a,
-                39,
-                51,
-                self.bit_buffer_b[57],
+                (39 + offset) as usize,
+                (51 + offset) as usize,
+                self.bit_buffer_b[(57 + offset) as usize],
             );
             self.radio_datetime.set_hour(
-                radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 44, 39),
+                radio_datetime_helpers::get_bcd_value(
+                    &self.bit_buffer_a,
+                    (44 + offset) as usize,
+                    (39 + offset) as usize,
+                ),
                 self.parity_4 == Some(true),
                 added_minute && !self.first_minute,
             );
             self.radio_datetime.set_minute(
-                radio_datetime_helpers::get_bcd_value(&self.bit_buffer_a, 51, 45),
+                radio_datetime_helpers::get_bcd_value(
+                    &self.bit_buffer_a,
+                    (51 + offset) as usize,
+                    (45 + offset) as usize,
+                ),
                 self.parity_4 == Some(true),
                 added_minute && !self.first_minute,
             );
 
             self.radio_datetime.set_dst(
-                self.bit_buffer_b[58],
-                self.bit_buffer_b[53],
+                self.bit_buffer_b[(58 + offset) as usize],
+                self.bit_buffer_b[(53 + offset) as usize],
                 added_minute && !self.first_minute,
             );
 
             self.dut1 = None;
             if let Some(dut1p) = npl_helpers::get_unary_value(&self.bit_buffer_b, 1, 8) {
-                // bit 16b is dropped in case of a negative leap second
-                let stop = if minute_length == 59 { 15 } else { 16 };
+                // bit 16 is dropped in case of a negative leap second
+                let stop = if offset == -1 { 15 } else { 16 };
                 if let Some(dut1n) = npl_helpers::get_unary_value(&self.bit_buffer_b, 9, stop) {
                     self.dut1 = if dut1p * dut1n == 0 {
                         Some(dut1p - dut1n)
