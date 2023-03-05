@@ -177,19 +177,17 @@ impl NPLUtils {
         }
     }
 
-    /**
-     * Determine the bit value if a new edge is received. indicates reception errors,
-     * and checks if a new minute has started.
-     *
-     * This function can deal with spikes, which are arbitrarily set to `spike_limit` microseconds.
-     *
-     * This method must be called _before_ `increase_second()`.
-     *
-     * # Arguments
-     * * `is_low_edge` - indicates that the edge has gone from high to low (as opposed to
-     *                   low-to-high).
-     * * `t` - time stamp of the received edge, in microseconds
-     */
+    /// Determine the bit value if a new edge is received. indicates reception errors,
+    /// and checks if a new minute has started.
+    ///
+    /// This function can deal with spikes, which are arbitrarily set to `spike_limit` microseconds.
+    ///
+    /// This method must be called _before_ `increase_second()`.
+    ///
+    /// # Arguments
+    /// * `is_low_edge` - indicates that the edge has gone from high to low (as opposed to
+    ///                   low-to-high).
+    /// * `t` - time stamp of the received edge, in microseconds
     pub fn handle_new_edge(&mut self, is_low_edge: bool, t: u32) {
         if self.before_first_edge {
             self.before_first_edge = false;
