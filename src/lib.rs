@@ -23,7 +23,7 @@ const PASSIVE_RUNAWAY: u32 = 1_500_000;
 
 /// Size of bit buffer in seconds plus one spare because we cannot know
 /// which method accessing the buffer is called after increase_second().
-const BIT_BUFFER_SIZE: usize = 61 + 1;
+pub const BIT_BUFFER_SIZE: usize = 61 + 1;
 
 /// NPL decoder class
 pub struct NPLUtils {
