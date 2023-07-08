@@ -1,6 +1,6 @@
-# npl\_utils
+# msf60\_utils
 
-NPL receiver for embedded platforms.
+MSF (60 kHz) receiver for embedded platforms.
 
 The API is still work-in-progress, expect changes.
 
