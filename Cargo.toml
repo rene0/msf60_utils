@@ -4,7 +4,7 @@ version = "0.3.1"
 edition = "2021"
 authors = [ "René Ladan <rene0+github@freedom.nl>" ]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/rene0/npl_utils"
+repository = "https://github.com/rene0/msf60_utils"
 description = "MSF receiver for embedded platforms."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
