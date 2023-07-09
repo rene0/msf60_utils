@@ -1,4 +1,4 @@
-//! Collection of utilities for NPL receivers.
+//! Collection of utilities for MSF receivers.
 
 //! Build with no_std for embedded platforms.
 #![cfg_attr(not(test), no_std)]
@@ -6,7 +6,7 @@
 use core::cmp::Ordering;
 use radio_datetime_utils::{radio_datetime_helpers, RadioDateTimeUtils};
 
-pub mod npl_helpers;
+pub mod msf_helpers;
 
 /// Default upper limit for spike detection in microseconds
 const SPIKE_LIMIT: u32 = 30_000;
@@ -25,8 +25,8 @@ const PASSIVE_RUNAWAY: u32 = 1_500_000;
 /// which method accessing the buffer is called after increase_second().
 pub const BIT_BUFFER_SIZE: usize = 61 + 1;
 
-/// NPL decoder class
-pub struct NPLUtils {
+/// MSF decoder class
+pub struct MSFUtils {
     first_minute: bool,
     new_minute: bool,
     new_second: bool,
@@ -46,7 +46,7 @@ pub struct NPLUtils {
     spike_limit: u32,
 }
 
-impl NPLUtils {
+impl MSFUtils {
     pub fn new() -> Self {
         Self {
             first_minute: true,
@@ -409,10 +409,10 @@ impl NPLUtils {
             );
 
             self.dut1 = None;
-            if let Some(dut1p) = npl_helpers::get_unary_value(&self.bit_buffer_b, 1, 8) {
+            if let Some(dut1p) = msf_helpers::get_unary_value(&self.bit_buffer_b, 1, 8) {
                 // bit 16 is dropped in case of a negative leap second
                 let stop = if offset == -1 { 15 } else { 16 };
-                if let Some(dut1n) = npl_helpers::get_unary_value(&self.bit_buffer_b, 9, stop) {
+                if let Some(dut1n) = msf_helpers::get_unary_value(&self.bit_buffer_b, 9, stop) {
                     self.dut1 = if dut1p * dut1n == 0 {
                         Some(dut1p - dut1n)
                     } else {
@@ -426,7 +426,7 @@ impl NPLUtils {
     }
 }
 
-impl Default for NPLUtils {
+impl Default for MSFUtils {
     fn default() -> Self {
         Self::new()
     }
@@ -475,33 +475,33 @@ mod tests {
             (!false, 423_997_265), // 89_655
             (!true, 424_906_368),  // 909_103
         ];
-        let mut npl = NPLUtils::default();
-        assert_eq!(npl.before_first_edge, true);
-        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
-        assert_eq!(npl.before_first_edge, false);
-        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+        let mut msf = MSFUtils::default();
+        assert_eq!(msf.before_first_edge, true);
+        msf.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(msf.before_first_edge, false);
+        assert_eq!(msf.t0, EDGE_BUFFER[0].1); // very first edge
 
-        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
-        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
-        assert_eq!(npl.new_second, true);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), None); // not yet determined, passive part
-        assert_eq!(npl.get_current_bit_b(), None); // not yet determined, passive part
+        msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(msf.new_second, true);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), None); // not yet determined, passive part
+        assert_eq!(msf.get_current_bit_b(), None); // not yet determined, passive part
 
-        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
-        assert_eq!(npl.new_second, false);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(false));
-        assert_eq!(npl.get_current_bit_b(), Some(false));
+        msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(msf.new_second, false);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(false));
+        assert_eq!(msf.get_current_bit_b(), Some(false));
 
         // passive part of second must keep the bit value
-        npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[3].1); // longer than a spike
-        assert_eq!(npl.new_second, true);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(false)); // keep bit value
-        assert_eq!(npl.get_current_bit_b(), Some(false)); // keep bit value
+        msf.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[3].1); // longer than a spike
+        assert_eq!(msf.new_second, true);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(false)); // keep bit value
+        assert_eq!(msf.get_current_bit_b(), Some(false)); // keep bit value
     }
     #[test]
     fn test_new_edge_bit_0_1() {
@@ -515,50 +515,50 @@ mod tests {
             (!false, 1_232_000), // 104_000
             (!true, 1_896_000),  // 644_000
         ];
-        let mut npl = NPLUtils::default();
-        assert_eq!(npl.before_first_edge, true);
-        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
-        assert_eq!(npl.before_first_edge, false);
-        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+        let mut msf = MSFUtils::default();
+        assert_eq!(msf.before_first_edge, true);
+        msf.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(msf.before_first_edge, false);
+        assert_eq!(msf.t0, EDGE_BUFFER[0].1); // very first edge
 
-        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
-        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
-        assert_eq!(npl.new_second, true);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), None); // not yet determined, passive part
-        assert_eq!(npl.get_current_bit_b(), None); // not yet determined, passive part
+        msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(msf.new_second, true);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), None); // not yet determined, passive part
+        assert_eq!(msf.get_current_bit_b(), None); // not yet determined, passive part
 
         // active signal part one, so we should get an intermediate (0,0) bit pair here:
-        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
-        assert_eq!(npl.new_second, false);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(false));
-        assert_eq!(npl.get_current_bit_b(), Some(false));
+        msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(msf.new_second, false);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(false));
+        assert_eq!(msf.get_current_bit_b(), Some(false));
 
         // passive signal part one (up to `ACTIVE_0_LIMIT` or 150_000 microseconds), keep bit values:
-        npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[3].1); // longer than a spike
-        assert_eq!(npl.new_second, false);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(false));
-        assert_eq!(npl.get_current_bit_b(), Some(false));
+        msf.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[3].1); // longer than a spike
+        assert_eq!(msf.new_second, false);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(false));
+        assert_eq!(msf.get_current_bit_b(), Some(false));
 
         // active signal part two, get the (0,1) bit pair:
-        npl.handle_new_edge(EDGE_BUFFER[4].0, EDGE_BUFFER[4].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[4].1); // longer than a spike
-        assert_eq!(npl.new_second, false);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(false));
-        assert_eq!(npl.get_current_bit_b(), Some(true));
+        msf.handle_new_edge(EDGE_BUFFER[4].0, EDGE_BUFFER[4].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[4].1); // longer than a spike
+        assert_eq!(msf.new_second, false);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(false));
+        assert_eq!(msf.get_current_bit_b(), Some(true));
 
         // passive signal part two, keep the bit values:
-        npl.handle_new_edge(EDGE_BUFFER[5].0, EDGE_BUFFER[5].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[5].1); // longer than a spike
-        assert_eq!(npl.new_second, true);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(false)); // keep bit value
-        assert_eq!(npl.get_current_bit_b(), Some(true)); // keep bit value
+        msf.handle_new_edge(EDGE_BUFFER[5].0, EDGE_BUFFER[5].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[5].1); // longer than a spike
+        assert_eq!(msf.new_second, true);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(false)); // keep bit value
+        assert_eq!(msf.get_current_bit_b(), Some(true)); // keep bit value
     }
     #[test]
     fn test_new_edge_bit_1_0() {
@@ -569,33 +569,33 @@ mod tests {
             (!false, 415_090_038), // 180_963
             (!true, 415_908_781),  // 818_743
         ];
-        let mut npl = NPLUtils::default();
-        assert_eq!(npl.before_first_edge, true);
-        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
-        assert_eq!(npl.before_first_edge, false);
-        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+        let mut msf = MSFUtils::default();
+        assert_eq!(msf.before_first_edge, true);
+        msf.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(msf.before_first_edge, false);
+        assert_eq!(msf.t0, EDGE_BUFFER[0].1); // very first edge
 
-        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
-        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
-        assert_eq!(npl.new_second, true);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), None); // not yet determined, passive part
-        assert_eq!(npl.get_current_bit_b(), None); // not yet determined, passive part
+        msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(msf.new_second, true);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), None); // not yet determined, passive part
+        assert_eq!(msf.get_current_bit_b(), None); // not yet determined, passive part
 
-        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
-        assert_eq!(npl.new_second, false);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(true));
-        assert_eq!(npl.get_current_bit_b(), Some(false));
+        msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(msf.new_second, false);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(true));
+        assert_eq!(msf.get_current_bit_b(), Some(false));
 
         // passive part of second must keep the bit value
-        npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[3].1); // longer than a spike
-        assert_eq!(npl.new_second, true);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(true)); // keep bit value
-        assert_eq!(npl.get_current_bit_b(), Some(false)); // keep bit value
+        msf.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[3].1); // longer than a spike
+        assert_eq!(msf.new_second, true);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(true)); // keep bit value
+        assert_eq!(msf.get_current_bit_b(), Some(false)); // keep bit value
     }
     #[test]
     fn test_new_edge_bit_1_1() {
@@ -606,33 +606,33 @@ mod tests {
             (!false, 416_194_383), // 285_602
             (!true, 416_901_482),  // 707_099
         ];
-        let mut npl = NPLUtils::default();
-        assert_eq!(npl.before_first_edge, true);
-        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
-        assert_eq!(npl.before_first_edge, false);
-        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+        let mut msf = MSFUtils::default();
+        assert_eq!(msf.before_first_edge, true);
+        msf.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(msf.before_first_edge, false);
+        assert_eq!(msf.t0, EDGE_BUFFER[0].1); // very first edge
 
-        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
-        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
-        assert_eq!(npl.new_second, true);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), None); // not yet determined, passive part
-        assert_eq!(npl.get_current_bit_b(), None); // not yet determined, passive part
+        msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(msf.new_second, true);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), None); // not yet determined, passive part
+        assert_eq!(msf.get_current_bit_b(), None); // not yet determined, passive part
 
-        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
-        assert_eq!(npl.new_second, false);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(true));
-        assert_eq!(npl.get_current_bit_b(), Some(true));
+        msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(msf.new_second, false);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(true));
+        assert_eq!(msf.get_current_bit_b(), Some(true));
 
         // passive part of second must keep the bit value
-        npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[3].1); // longer than a spike
-        assert_eq!(npl.new_second, true);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(true)); // keep bit value
-        assert_eq!(npl.get_current_bit_b(), Some(true)); // keep bit value
+        msf.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[3].1); // longer than a spike
+        assert_eq!(msf.new_second, true);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(true)); // keep bit value
+        assert_eq!(msf.get_current_bit_b(), Some(true)); // keep bit value
     }
     #[test]
     fn test_new_edge_minute() {
@@ -642,25 +642,25 @@ mod tests {
             (!true, 421_906_680),  // 912_060
             (!false, 422_389_442), // 482_762
         ];
-        let mut npl = NPLUtils::default();
-        assert_eq!(npl.before_first_edge, true);
-        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
-        assert_eq!(npl.before_first_edge, false);
-        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+        let mut msf = MSFUtils::default();
+        assert_eq!(msf.before_first_edge, true);
+        msf.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(msf.before_first_edge, false);
+        assert_eq!(msf.t0, EDGE_BUFFER[0].1); // very first edge
 
-        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
-        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
-        assert_eq!(npl.new_second, true);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), None); // not yet determined
-        assert_eq!(npl.get_current_bit_b(), None); // not yet determined
+        msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(msf.new_second, true);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), None); // not yet determined
+        assert_eq!(msf.get_current_bit_b(), None); // not yet determined
 
-        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1); // new minute
-        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
-        assert_eq!(npl.new_second, false);
-        assert_eq!(npl.new_minute, true);
-        assert_eq!(npl.get_current_bit_a(), Some(true));
-        assert_eq!(npl.get_current_bit_b(), Some(true));
+        msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1); // new minute
+        assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(msf.new_second, false);
+        assert_eq!(msf.new_minute, true);
+        assert_eq!(msf.get_current_bit_a(), Some(true));
+        assert_eq!(msf.get_current_bit_b(), Some(true));
     }
     #[test]
     fn test_new_edge_active_runaway() {
@@ -670,25 +670,25 @@ mod tests {
             (!true, 417_908_323),  // 712_670
             (!false, 419_193_216), // 1_284_893
         ];
-        let mut npl = NPLUtils::default();
-        assert_eq!(npl.before_first_edge, true);
-        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
-        assert_eq!(npl.before_first_edge, false);
-        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+        let mut msf = MSFUtils::default();
+        assert_eq!(msf.before_first_edge, true);
+        msf.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(msf.before_first_edge, false);
+        assert_eq!(msf.t0, EDGE_BUFFER[0].1); // very first edge
 
-        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
-        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
-        assert_eq!(npl.new_second, true);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), None); // not yet determined, passive part
-        assert_eq!(npl.get_current_bit_b(), None); // not yet determined, passive part
+        msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(msf.new_second, true);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), None); // not yet determined, passive part
+        assert_eq!(msf.get_current_bit_b(), None); // not yet determined, passive part
 
-        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
-        assert_eq!(npl.new_second, false);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), None);
-        assert_eq!(npl.get_current_bit_b(), None);
+        msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(msf.new_second, false);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), None);
+        assert_eq!(msf.get_current_bit_b(), None);
     }
     #[test]
     fn test_new_edge_passive_runaway() {
@@ -699,33 +699,33 @@ mod tests {
             (!false, 898_110_362), // 68_001 (0,0) bit
             (!true, 900_067_737),  // 1_957_375 passive runaway
         ];
-        let mut npl = NPLUtils::default();
-        assert_eq!(npl.before_first_edge, true);
-        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
-        assert_eq!(npl.before_first_edge, false);
-        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+        let mut msf = MSFUtils::default();
+        assert_eq!(msf.before_first_edge, true);
+        msf.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(msf.before_first_edge, false);
+        assert_eq!(msf.t0, EDGE_BUFFER[0].1); // very first edge
 
-        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
-        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
-        assert_eq!(npl.new_second, true);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), None); // not yet determined, passive part
-        assert_eq!(npl.get_current_bit_b(), None); // not yet determined, passive part
+        msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(msf.new_second, true);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), None); // not yet determined, passive part
+        assert_eq!(msf.get_current_bit_b(), None); // not yet determined, passive part
 
-        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
-        assert_eq!(npl.new_second, false);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(false));
-        assert_eq!(npl.get_current_bit_b(), Some(false));
+        msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(msf.new_second, false);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(false));
+        assert_eq!(msf.get_current_bit_b(), Some(false));
 
         // passive part of second must keep the bit value
-        npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[3].1); // longer than a spike
-        assert_eq!(npl.new_second, false);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), None);
-        assert_eq!(npl.get_current_bit_b(), None);
+        msf.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[3].1); // longer than a spike
+        assert_eq!(msf.new_second, false);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), None);
+        assert_eq!(msf.get_current_bit_b(), None);
     }
     #[test]
     fn test_new_edge_spikes() {
@@ -740,403 +740,403 @@ mod tests {
             (!false, 902_115_859), // 9_879
             (!true, 903_057_346),  // 941_487
         ];
-        let mut npl = NPLUtils::default();
-        assert_eq!(npl.before_first_edge, true);
-        npl.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
-        assert_eq!(npl.before_first_edge, false);
-        assert_eq!(npl.t0, EDGE_BUFFER[0].1); // very first edge
+        let mut msf = MSFUtils::default();
+        assert_eq!(msf.before_first_edge, true);
+        msf.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(msf.before_first_edge, false);
+        assert_eq!(msf.t0, EDGE_BUFFER[0].1); // very first edge
 
-        npl.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
-        assert_eq!(npl.t0, EDGE_BUFFER[1].1); // longer than a spike
-        assert_eq!(npl.new_second, true);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), None); // not yet determined
-        assert_eq!(npl.get_current_bit_b(), None); // not yet determined
+        msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(msf.new_second, true);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), None); // not yet determined
+        assert_eq!(msf.get_current_bit_b(), None); // not yet determined
 
-        npl.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[2].1); // longer than a spike
-        assert_eq!(npl.new_second, false);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(true));
-        assert_eq!(npl.get_current_bit_b(), Some(false));
+        msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(msf.new_second, false);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(true));
+        assert_eq!(msf.get_current_bit_b(), Some(false));
 
-        npl.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1); // first significant edge
-        assert_eq!(npl.t0, EDGE_BUFFER[3].1); // longer than a spike
-        assert_eq!(npl.new_second, true);
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(true)); // keep value
-        assert_eq!(npl.get_current_bit_b(), Some(false)); // keep value
+        msf.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1); // first significant edge
+        assert_eq!(msf.t0, EDGE_BUFFER[3].1); // longer than a spike
+        assert_eq!(msf.new_second, true);
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(true)); // keep value
+        assert_eq!(msf.get_current_bit_b(), Some(false)); // keep value
 
         // Feed a bunch of spikes of less than spike_limit us, nothing should happen
-        let mut spike = npl.t0;
+        let mut spike = msf.t0;
         for i in 4..=6 {
             spike += radio_datetime_helpers::time_diff(EDGE_BUFFER[i - 1].1, EDGE_BUFFER[i].1);
-            npl.handle_new_edge(EDGE_BUFFER[i].0, EDGE_BUFFER[i].1);
-            assert_eq!(npl.t0, spike);
-            assert_eq!(npl.new_second, true);
-            assert_eq!(npl.new_minute, false);
-            assert_eq!(npl.get_current_bit_a(), Some(true));
-            assert_eq!(npl.get_current_bit_b(), Some(false));
+            msf.handle_new_edge(EDGE_BUFFER[i].0, EDGE_BUFFER[i].1);
+            assert_eq!(msf.t0, spike);
+            assert_eq!(msf.new_second, true);
+            assert_eq!(msf.new_minute, false);
+            assert_eq!(msf.get_current_bit_a(), Some(true));
+            assert_eq!(msf.get_current_bit_b(), Some(false));
         }
-        npl.handle_new_edge(EDGE_BUFFER[7].0, EDGE_BUFFER[7].1);
-        assert_eq!(npl.t0, EDGE_BUFFER[7].1); // longer than a spike
-        assert_eq!(npl.new_second, true); // regular new second
-        assert_eq!(npl.new_minute, false);
-        assert_eq!(npl.get_current_bit_a(), Some(true)); // keep value
-        assert_eq!(npl.get_current_bit_b(), Some(false)); // keep value
+        msf.handle_new_edge(EDGE_BUFFER[7].0, EDGE_BUFFER[7].1);
+        assert_eq!(msf.t0, EDGE_BUFFER[7].1); // longer than a spike
+        assert_eq!(msf.new_second, true); // regular new second
+        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.get_current_bit_a(), Some(true)); // keep value
+        assert_eq!(msf.get_current_bit_b(), Some(false)); // keep value
     }
 
     #[test]
     fn test_eom_marker_too_short() {
-        let mut npl = NPLUtils::default();
-        npl.second = 5; // something less than 8
+        let mut msf = MSFUtils::default();
+        msf.second = 5; // something less than 8
         for b in 0..=5 {
-            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
-        assert_eq!(npl.end_of_minute_marker_present(false), false);
+        assert_eq!(msf.end_of_minute_marker_present(false), false);
     }
     #[test]
     fn test_eom_marker_absent() {
-        let mut npl = NPLUtils::default();
-        npl.second = 60;
+        let mut msf = MSFUtils::default();
+        msf.second = 60;
         for b in 52..=59 {
-            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
-        npl.bit_buffer_a[57] = None; // introduce an error
-        assert_eq!(npl.end_of_minute_marker_present(false), false);
+        msf.bit_buffer_a[57] = None; // introduce an error
+        assert_eq!(msf.end_of_minute_marker_present(false), false);
     }
     #[test]
     fn test_eom_marker_absent_ahead() {
-        let mut npl = NPLUtils::default();
-        npl.second = 60;
+        let mut msf = MSFUtils::default();
+        msf.second = 60;
         for b in 52..=59 {
-            npl.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
         }
-        npl.bit_buffer_a[57] = None; // introduce an error
-        assert_eq!(npl.end_of_minute_marker_present(true), false);
+        msf.bit_buffer_a[57] = None; // introduce an error
+        assert_eq!(msf.end_of_minute_marker_present(true), false);
     }
     #[test]
     fn test_eom_marker_present() {
-        let mut npl = NPLUtils::default();
-        npl.second = 60;
+        let mut msf = MSFUtils::default();
+        msf.second = 60;
         for b in 52..=59 {
-            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
-        assert_eq!(npl.end_of_minute_marker_present(false), true);
+        assert_eq!(msf.end_of_minute_marker_present(false), true);
     }
     #[test]
     fn test_eom_marker_present_ahead() {
-        let mut npl = NPLUtils::default();
-        npl.second = 60;
+        let mut msf = MSFUtils::default();
+        msf.second = 60;
         for b in 52..=59 {
-            npl.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
         }
-        assert_eq!(npl.end_of_minute_marker_present(true), true);
+        assert_eq!(msf.end_of_minute_marker_present(true), true);
     }
 
     #[test]
     fn test_decode_time_incomplete_minute() {
-        let mut npl = NPLUtils::default();
-        assert_eq!(npl.first_minute, true);
-        npl.second = 42;
-        // note that npl.bit_buffer_[ab] are still empty
-        assert_ne!(npl.get_minute_length(), npl.second);
-        assert_eq!(npl.parity_1, None);
-        npl.decode_time();
+        let mut msf = MSFUtils::default();
+        assert_eq!(msf.first_minute, true);
+        msf.second = 42;
+        // note that msf.bit_buffer_[ab] are still empty
+        assert_ne!(msf.get_minute_length(), msf.second);
+        assert_eq!(msf.parity_1, None);
+        msf.decode_time();
         // not enough seconds in this minute, so nothing should happen:
-        assert_eq!(npl.parity_1, None);
+        assert_eq!(msf.parity_1, None);
     }
     #[test]
     fn test_decode_time_complete_minute_ok() {
-        let mut npl = NPLUtils::default();
-        npl.second = 60;
-        assert_eq!(npl.get_minute_length(), npl.second);
+        let mut msf = MSFUtils::default();
+        msf.second = 60;
+        assert_eq!(msf.get_minute_length(), msf.second);
         for b in 0..=59 {
-            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
-            npl.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
-        npl.decode_time();
+        msf.decode_time();
         // we should have a valid decoding:
-        assert_eq!(npl.radio_datetime.get_minute(), Some(58));
-        assert_eq!(npl.radio_datetime.get_hour(), Some(14));
-        assert_eq!(npl.radio_datetime.get_weekday(), Some(6));
-        assert_eq!(npl.radio_datetime.get_day(), Some(23));
-        assert_eq!(npl.radio_datetime.get_month(), Some(10));
-        assert_eq!(npl.radio_datetime.get_year(), Some(22));
-        assert_eq!(npl.parity_1, Some(true));
-        assert_eq!(npl.parity_2, Some(true));
-        assert_eq!(npl.parity_3, Some(true));
-        assert_eq!(npl.parity_4, Some(true));
+        assert_eq!(msf.radio_datetime.get_minute(), Some(58));
+        assert_eq!(msf.radio_datetime.get_hour(), Some(14));
+        assert_eq!(msf.radio_datetime.get_weekday(), Some(6));
+        assert_eq!(msf.radio_datetime.get_day(), Some(23));
+        assert_eq!(msf.radio_datetime.get_month(), Some(10));
+        assert_eq!(msf.radio_datetime.get_year(), Some(22));
+        assert_eq!(msf.parity_1, Some(true));
+        assert_eq!(msf.parity_2, Some(true));
+        assert_eq!(msf.parity_3, Some(true));
+        assert_eq!(msf.parity_4, Some(true));
         assert_eq!(
-            npl.radio_datetime.get_dst(),
+            msf.radio_datetime.get_dst(),
             Some(radio_datetime_utils::DST_SUMMER)
         );
-        assert_eq!(npl.radio_datetime.get_leap_second(), None); // not available
-        assert_eq!(npl.dut1, Some(-2));
+        assert_eq!(msf.radio_datetime.get_leap_second(), None); // not available
+        assert_eq!(msf.dut1, Some(-2));
     }
     #[test]
     fn test_decode_time_complete_minute_ok_negative_leap_second() {
-        let mut npl = NPLUtils::default();
-        npl.second = 59;
+        let mut msf = MSFUtils::default();
+        msf.second = 59;
         for b in 0..=15 {
-            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
-            npl.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
         // bit 16 removed
         for b in 17..=59 {
-            npl.bit_buffer_a[b - 1] = Some(BIT_BUFFER_A[b]);
-            npl.bit_buffer_b[b - 1] = Some(BIT_BUFFER_B[b]);
+            msf.bit_buffer_a[b - 1] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b - 1] = Some(BIT_BUFFER_B[b]);
         }
-        assert_eq!(npl.get_minute_length(), npl.second);
-        npl.decode_time();
+        assert_eq!(msf.get_minute_length(), msf.second);
+        msf.decode_time();
         // we should have a valid decoding:
-        assert_eq!(npl.radio_datetime.get_minute(), Some(58));
-        assert_eq!(npl.radio_datetime.get_hour(), Some(14));
-        assert_eq!(npl.radio_datetime.get_weekday(), Some(6));
-        assert_eq!(npl.radio_datetime.get_day(), Some(23));
-        assert_eq!(npl.radio_datetime.get_month(), Some(10));
-        assert_eq!(npl.radio_datetime.get_year(), Some(22));
-        assert_eq!(npl.parity_1, Some(true));
-        assert_eq!(npl.parity_2, Some(true));
-        assert_eq!(npl.parity_3, Some(true));
-        assert_eq!(npl.parity_4, Some(true));
+        assert_eq!(msf.radio_datetime.get_minute(), Some(58));
+        assert_eq!(msf.radio_datetime.get_hour(), Some(14));
+        assert_eq!(msf.radio_datetime.get_weekday(), Some(6));
+        assert_eq!(msf.radio_datetime.get_day(), Some(23));
+        assert_eq!(msf.radio_datetime.get_month(), Some(10));
+        assert_eq!(msf.radio_datetime.get_year(), Some(22));
+        assert_eq!(msf.parity_1, Some(true));
+        assert_eq!(msf.parity_2, Some(true));
+        assert_eq!(msf.parity_3, Some(true));
+        assert_eq!(msf.parity_4, Some(true));
         assert_eq!(
-            npl.radio_datetime.get_dst(),
+            msf.radio_datetime.get_dst(),
             Some(radio_datetime_utils::DST_SUMMER)
         );
-        assert_eq!(npl.radio_datetime.get_leap_second(), None); // not available
-        assert_eq!(npl.dut1, Some(-2));
+        assert_eq!(msf.radio_datetime.get_leap_second(), None); // not available
+        assert_eq!(msf.dut1, Some(-2));
     }
     #[test]
     fn test_decode_time_complete_minute_ok_positive_leap_second() {
-        let mut npl = NPLUtils::default();
-        npl.second = 61;
+        let mut msf = MSFUtils::default();
+        msf.second = 61;
         for b in 0..=16 {
-            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
-            npl.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
         // insert the positive leap second, left None on purpose (it should not affect decoding)
-        npl.bit_buffer_a[17] = None;
-        npl.bit_buffer_b[17] = None;
+        msf.bit_buffer_a[17] = None;
+        msf.bit_buffer_b[17] = None;
         for b in 17..=59 {
-            npl.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
-            npl.bit_buffer_b[b + 1] = Some(BIT_BUFFER_B[b]);
+            msf.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b + 1] = Some(BIT_BUFFER_B[b]);
         }
-        assert_eq!(npl.get_minute_length(), npl.second);
-        npl.decode_time();
+        assert_eq!(msf.get_minute_length(), msf.second);
+        msf.decode_time();
         // we should have a valid decoding:
-        assert_eq!(npl.radio_datetime.get_minute(), Some(58));
-        assert_eq!(npl.radio_datetime.get_hour(), Some(14));
-        assert_eq!(npl.radio_datetime.get_weekday(), Some(6));
-        assert_eq!(npl.radio_datetime.get_day(), Some(23));
-        assert_eq!(npl.radio_datetime.get_month(), Some(10));
-        assert_eq!(npl.radio_datetime.get_year(), Some(22));
-        assert_eq!(npl.parity_1, Some(true));
-        assert_eq!(npl.parity_2, Some(true));
-        assert_eq!(npl.parity_3, Some(true));
-        assert_eq!(npl.parity_4, Some(true));
+        assert_eq!(msf.radio_datetime.get_minute(), Some(58));
+        assert_eq!(msf.radio_datetime.get_hour(), Some(14));
+        assert_eq!(msf.radio_datetime.get_weekday(), Some(6));
+        assert_eq!(msf.radio_datetime.get_day(), Some(23));
+        assert_eq!(msf.radio_datetime.get_month(), Some(10));
+        assert_eq!(msf.radio_datetime.get_year(), Some(22));
+        assert_eq!(msf.parity_1, Some(true));
+        assert_eq!(msf.parity_2, Some(true));
+        assert_eq!(msf.parity_3, Some(true));
+        assert_eq!(msf.parity_4, Some(true));
         assert_eq!(
-            npl.radio_datetime.get_dst(),
+            msf.radio_datetime.get_dst(),
             Some(radio_datetime_utils::DST_SUMMER)
         );
-        assert_eq!(npl.radio_datetime.get_leap_second(), None); // not available
-        assert_eq!(npl.dut1, Some(-2));
+        assert_eq!(msf.radio_datetime.get_leap_second(), None); // not available
+        assert_eq!(msf.dut1, Some(-2));
     }
     #[test]
     fn test_decode_time_complete_minute_bad_bits() {
-        let mut npl = NPLUtils::default();
-        npl.second = 60;
-        assert_eq!(npl.get_minute_length(), npl.second);
+        let mut msf = MSFUtils::default();
+        msf.second = 60;
+        assert_eq!(msf.get_minute_length(), msf.second);
         for b in 0..=59 {
-            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
-            npl.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
         // introduce some distortions:
-        npl.bit_buffer_b[1] = Some(true); // now both 1-8 and 9-16 are positive, which is an error
-        npl.bit_buffer_a[31] = None; // None hour
-        npl.bit_buffer_a[48] = Some(!npl.bit_buffer_a[48].unwrap());
-        npl.decode_time();
-        assert_eq!(npl.radio_datetime.get_minute(), None); // bad parity and first decoding
-        assert_eq!(npl.radio_datetime.get_hour(), None); // bad parity and first decoding
-        assert_eq!(npl.radio_datetime.get_weekday(), Some(6));
-        assert_eq!(npl.radio_datetime.get_day(), None); // broken bit
-        assert_eq!(npl.radio_datetime.get_month(), None); // broken parity and first decoding
-        assert_eq!(npl.radio_datetime.get_year(), Some(22));
-        assert_eq!(npl.parity_1, Some(true));
-        assert_eq!(npl.parity_2, None); // broken bit
-        assert_eq!(npl.parity_3, Some(true));
-        assert_eq!(npl.parity_4, Some(false)); // bad parity
+        msf.bit_buffer_b[1] = Some(true); // now both 1-8 and 9-16 are positive, which is an error
+        msf.bit_buffer_a[31] = None; // None hour
+        msf.bit_buffer_a[48] = Some(!msf.bit_buffer_a[48].unwrap());
+        msf.decode_time();
+        assert_eq!(msf.radio_datetime.get_minute(), None); // bad parity and first decoding
+        assert_eq!(msf.radio_datetime.get_hour(), None); // bad parity and first decoding
+        assert_eq!(msf.radio_datetime.get_weekday(), Some(6));
+        assert_eq!(msf.radio_datetime.get_day(), None); // broken bit
+        assert_eq!(msf.radio_datetime.get_month(), None); // broken parity and first decoding
+        assert_eq!(msf.radio_datetime.get_year(), Some(22));
+        assert_eq!(msf.parity_1, Some(true));
+        assert_eq!(msf.parity_2, None); // broken bit
+        assert_eq!(msf.parity_3, Some(true));
+        assert_eq!(msf.parity_4, Some(false)); // bad parity
         assert_eq!(
-            npl.radio_datetime.get_dst(),
+            msf.radio_datetime.get_dst(),
             Some(radio_datetime_utils::DST_SUMMER)
         );
-        assert_eq!(npl.radio_datetime.get_leap_second(), None);
-        assert_eq!(npl.dut1, None);
+        assert_eq!(msf.radio_datetime.get_leap_second(), None);
+        assert_eq!(msf.dut1, None);
     }
     #[test]
     fn continue_decode_time_complete_minute_jumped_values() {
-        let mut npl = NPLUtils::default();
-        npl.second = 60;
-        assert_eq!(npl.get_minute_length(), npl.second);
+        let mut msf = MSFUtils::default();
+        msf.second = 60;
+        assert_eq!(msf.get_minute_length(), msf.second);
         for b in 0..=59 {
-            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
-            npl.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
-        npl.decode_time();
-        assert_eq!(npl.radio_datetime.get_minute(), Some(58));
-        assert_eq!(npl.radio_datetime.get_jump_minute(), false);
-        npl.first_minute = false;
+        msf.decode_time();
+        assert_eq!(msf.radio_datetime.get_minute(), Some(58));
+        assert_eq!(msf.radio_datetime.get_jump_minute(), false);
+        msf.first_minute = false;
         // minute 58 is really cool, so do not update bit 51 (and 57)
-        npl.decode_time();
-        assert_eq!(npl.radio_datetime.get_minute(), Some(58));
-        assert_eq!(npl.radio_datetime.get_hour(), Some(14));
-        assert_eq!(npl.radio_datetime.get_weekday(), Some(6));
-        assert_eq!(npl.radio_datetime.get_day(), Some(23));
-        assert_eq!(npl.radio_datetime.get_month(), Some(10));
-        assert_eq!(npl.radio_datetime.get_year(), Some(22));
-        assert_eq!(npl.parity_1, Some(true));
-        assert_eq!(npl.parity_2, Some(true));
-        assert_eq!(npl.parity_3, Some(true));
-        assert_eq!(npl.parity_4, Some(true));
+        msf.decode_time();
+        assert_eq!(msf.radio_datetime.get_minute(), Some(58));
+        assert_eq!(msf.radio_datetime.get_hour(), Some(14));
+        assert_eq!(msf.radio_datetime.get_weekday(), Some(6));
+        assert_eq!(msf.radio_datetime.get_day(), Some(23));
+        assert_eq!(msf.radio_datetime.get_month(), Some(10));
+        assert_eq!(msf.radio_datetime.get_year(), Some(22));
+        assert_eq!(msf.parity_1, Some(true));
+        assert_eq!(msf.parity_2, Some(true));
+        assert_eq!(msf.parity_3, Some(true));
+        assert_eq!(msf.parity_4, Some(true));
         assert_eq!(
-            npl.radio_datetime.get_dst(),
+            msf.radio_datetime.get_dst(),
             Some(radio_datetime_utils::DST_SUMMER)
         );
-        assert_eq!(npl.radio_datetime.get_leap_second(), None);
-        assert_eq!(npl.radio_datetime.get_jump_minute(), true);
-        assert_eq!(npl.radio_datetime.get_jump_hour(), false);
-        assert_eq!(npl.radio_datetime.get_jump_weekday(), false);
-        assert_eq!(npl.radio_datetime.get_jump_day(), false);
-        assert_eq!(npl.radio_datetime.get_jump_month(), false);
-        assert_eq!(npl.radio_datetime.get_jump_year(), false);
+        assert_eq!(msf.radio_datetime.get_leap_second(), None);
+        assert_eq!(msf.radio_datetime.get_jump_minute(), true);
+        assert_eq!(msf.radio_datetime.get_jump_hour(), false);
+        assert_eq!(msf.radio_datetime.get_jump_weekday(), false);
+        assert_eq!(msf.radio_datetime.get_jump_day(), false);
+        assert_eq!(msf.radio_datetime.get_jump_month(), false);
+        assert_eq!(msf.radio_datetime.get_jump_year(), false);
     }
     #[test]
     fn continue_decode_time_complete_minute_bad_bits() {
-        let mut npl = NPLUtils::default();
-        npl.second = 60;
-        assert_eq!(npl.get_minute_length(), npl.second);
+        let mut msf = MSFUtils::default();
+        msf.second = 60;
+        assert_eq!(msf.get_minute_length(), msf.second);
         for b in 0..=59 {
-            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
-            npl.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
-        npl.decode_time();
-        npl.first_minute = false;
+        msf.decode_time();
+        msf.first_minute = false;
         // update for the next minute:
-        npl.bit_buffer_a[51] = Some(true);
-        npl.bit_buffer_b[57] = Some(true);
+        msf.bit_buffer_a[51] = Some(true);
+        msf.bit_buffer_b[57] = Some(true);
         // introduce some distortions:
-        npl.bit_buffer_a[31] = None; // None hour
-        npl.bit_buffer_a[48] = Some(!npl.bit_buffer_a[48].unwrap());
-        npl.decode_time();
-        assert_eq!(npl.radio_datetime.get_minute(), Some(59)); // bad parity
-        assert_eq!(npl.radio_datetime.get_hour(), Some(14));
-        assert_eq!(npl.radio_datetime.get_weekday(), Some(6)); // broken parity
-        assert_eq!(npl.radio_datetime.get_day(), Some(23)); // broken bit
-        assert_eq!(npl.radio_datetime.get_month(), Some(10)); // broken parity
-        assert_eq!(npl.radio_datetime.get_year(), Some(22)); // broken parity
-        assert_eq!(npl.parity_1, Some(true));
-        assert_eq!(npl.parity_2, None); // broken bit
-        assert_eq!(npl.parity_3, Some(true));
-        assert_eq!(npl.parity_4, Some(false)); // bad parity
+        msf.bit_buffer_a[31] = None; // None hour
+        msf.bit_buffer_a[48] = Some(!msf.bit_buffer_a[48].unwrap());
+        msf.decode_time();
+        assert_eq!(msf.radio_datetime.get_minute(), Some(59)); // bad parity
+        assert_eq!(msf.radio_datetime.get_hour(), Some(14));
+        assert_eq!(msf.radio_datetime.get_weekday(), Some(6)); // broken parity
+        assert_eq!(msf.radio_datetime.get_day(), Some(23)); // broken bit
+        assert_eq!(msf.radio_datetime.get_month(), Some(10)); // broken parity
+        assert_eq!(msf.radio_datetime.get_year(), Some(22)); // broken parity
+        assert_eq!(msf.parity_1, Some(true));
+        assert_eq!(msf.parity_2, None); // broken bit
+        assert_eq!(msf.parity_3, Some(true));
+        assert_eq!(msf.parity_4, Some(false)); // bad parity
         assert_eq!(
-            npl.radio_datetime.get_dst(),
+            msf.radio_datetime.get_dst(),
             Some(radio_datetime_utils::DST_SUMMER)
         );
-        assert_eq!(npl.radio_datetime.get_leap_second(), None);
-        assert_eq!(npl.radio_datetime.get_jump_minute(), false);
-        assert_eq!(npl.radio_datetime.get_jump_hour(), false);
-        assert_eq!(npl.radio_datetime.get_jump_weekday(), false);
-        assert_eq!(npl.radio_datetime.get_jump_day(), false);
-        assert_eq!(npl.radio_datetime.get_jump_month(), false);
-        assert_eq!(npl.radio_datetime.get_jump_year(), false);
+        assert_eq!(msf.radio_datetime.get_leap_second(), None);
+        assert_eq!(msf.radio_datetime.get_jump_minute(), false);
+        assert_eq!(msf.radio_datetime.get_jump_hour(), false);
+        assert_eq!(msf.radio_datetime.get_jump_weekday(), false);
+        assert_eq!(msf.radio_datetime.get_jump_day(), false);
+        assert_eq!(msf.radio_datetime.get_jump_month(), false);
+        assert_eq!(msf.radio_datetime.get_jump_year(), false);
     }
     #[test]
     fn continue_decode_time_complete_minute_dst_change() {
-        let mut npl = NPLUtils::default();
-        npl.second = 60;
+        let mut msf = MSFUtils::default();
+        msf.second = 60;
         for b in 0..=59 {
-            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
-            npl.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
         // DST change must be at top of hour and
         // announcements only count before the hour, so set minute to 59:
-        npl.bit_buffer_a[51] = Some(true);
-        npl.bit_buffer_b[57] = Some(true);
+        msf.bit_buffer_a[51] = Some(true);
+        msf.bit_buffer_b[57] = Some(true);
         // announce a DST change:
-        npl.bit_buffer_b[53] = Some(true);
-        npl.decode_time();
-        assert_eq!(npl.radio_datetime.get_minute(), Some(59));
+        msf.bit_buffer_b[53] = Some(true);
+        msf.decode_time();
+        assert_eq!(msf.radio_datetime.get_minute(), Some(59));
         assert_eq!(
-            npl.radio_datetime.get_dst(),
+            msf.radio_datetime.get_dst(),
             Some(radio_datetime_utils::DST_ANNOUNCED | radio_datetime_utils::DST_SUMMER)
         );
         // next minute and hour:
-        npl.bit_buffer_a[45] = Some(false);
-        npl.bit_buffer_a[47] = Some(false);
-        npl.bit_buffer_a[48] = Some(false);
-        npl.bit_buffer_a[51] = Some(false);
-        npl.bit_buffer_a[44] = Some(true);
-        npl.bit_buffer_b[57] = Some(false);
+        msf.bit_buffer_a[45] = Some(false);
+        msf.bit_buffer_a[47] = Some(false);
+        msf.bit_buffer_a[48] = Some(false);
+        msf.bit_buffer_a[51] = Some(false);
+        msf.bit_buffer_a[44] = Some(true);
+        msf.bit_buffer_b[57] = Some(false);
         // which will have a DST change:
-        npl.bit_buffer_b[53] = Some(true);
-        npl.bit_buffer_b[58] = Some(false);
-        // leave npl.fist_minute true on purpose to catch minute-length bugs
-        npl.decode_time();
-        assert_eq!(npl.radio_datetime.get_minute(), Some(0));
-        assert_eq!(npl.radio_datetime.get_hour(), Some(15));
+        msf.bit_buffer_b[53] = Some(true);
+        msf.bit_buffer_b[58] = Some(false);
+        // leave msf.fist_minute true on purpose to catch minute-length bugs
+        msf.decode_time();
+        assert_eq!(msf.radio_datetime.get_minute(), Some(0));
+        assert_eq!(msf.radio_datetime.get_hour(), Some(15));
         assert_eq!(
-            npl.radio_datetime.get_dst(),
+            msf.radio_datetime.get_dst(),
             Some(radio_datetime_utils::DST_PROCESSED)
         ); // DST flipped off
     }
 
     #[test]
     fn test_increase_second_same_minute_ok() {
-        let mut npl = NPLUtils::default();
-        npl.second = 37;
+        let mut msf = MSFUtils::default();
+        msf.second = 37;
         // all date/time values are None
-        npl.increase_second();
-        assert_eq!(npl.first_minute, true);
-        assert_eq!(npl.second, 38);
+        msf.increase_second();
+        assert_eq!(msf.first_minute, true);
+        assert_eq!(msf.second, 38);
     }
     #[test]
     fn test_increase_second_same_minute_overflow() {
-        let mut npl = NPLUtils::default();
-        npl.second = 60;
+        let mut msf = MSFUtils::default();
+        msf.second = 60;
         // leap second value is None, or 0111_1110 is "in the middle"
-        npl.increase_second();
-        assert_eq!(npl.first_minute, true);
-        assert_eq!(npl.second, 0);
+        msf.increase_second();
+        assert_eq!(msf.first_minute, true);
+        assert_eq!(msf.second, 0);
     }
     #[test]
     fn test_increase_second_new_minute_ok() {
-        let mut npl = NPLUtils::default();
-        npl.new_minute = true;
-        npl.second = 60;
-        assert_eq!(npl.get_minute_length(), npl.second);
+        let mut msf = MSFUtils::default();
+        msf.new_minute = true;
+        msf.second = 60;
+        assert_eq!(msf.get_minute_length(), msf.second);
         for b in 52..=59 {
-            npl.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
-        npl.radio_datetime.set_year(Some(22), true, false);
-        npl.radio_datetime.set_month(Some(10), true, false);
-        npl.radio_datetime.set_weekday(Some(6), true, false);
-        npl.radio_datetime.set_day(Some(22), true, false);
-        npl.radio_datetime.set_hour(Some(12), true, false);
-        npl.radio_datetime.set_minute(Some(59), true, false);
-        npl.radio_datetime.set_dst(Some(true), Some(false), false);
+        msf.radio_datetime.set_year(Some(22), true, false);
+        msf.radio_datetime.set_month(Some(10), true, false);
+        msf.radio_datetime.set_weekday(Some(6), true, false);
+        msf.radio_datetime.set_day(Some(22), true, false);
+        msf.radio_datetime.set_hour(Some(12), true, false);
+        msf.radio_datetime.set_minute(Some(59), true, false);
+        msf.radio_datetime.set_dst(Some(true), Some(false), false);
         // leap second value is None
-        npl.increase_second();
-        assert_eq!(npl.first_minute, false);
-        assert_eq!(npl.second, 0);
+        msf.increase_second();
+        assert_eq!(msf.first_minute, false);
+        assert_eq!(msf.second, 0);
     }
     #[test]
     fn test_increase_second_new_minute_none_values() {
-        let mut npl = NPLUtils::default();
-        npl.new_minute = true;
-        npl.second = 60;
+        let mut msf = MSFUtils::default();
+        msf.new_minute = true;
+        msf.second = 60;
         // all date/time values left None
-        npl.increase_second();
-        assert_eq!(npl.first_minute, true);
-        assert_eq!(npl.second, 0);
+        msf.increase_second();
+        assert_eq!(msf.first_minute, true);
+        assert_eq!(msf.second, 0);
     }
 }
