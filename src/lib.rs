@@ -505,7 +505,7 @@ mod tests {
     }
     #[test]
     fn test_new_edge_bit_0_1() {
-        // TODO replace with real data once (0,1) bit pairs are broadcast again, around 2023-08
+        // TODO replace with real data once (0,1) bit pairs are broadcast again
         const EDGE_BUFFER: [(bool, u32); 6] = [
             // Some(false,false) bit value
             (!false, 0),         // 0
