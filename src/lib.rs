@@ -239,8 +239,8 @@ impl MSFUtils {
 
     /// Determine the length of this minute in seconds.
     pub fn get_minute_length(&self) -> u8 {
-        if (59..=61).contains(&self.second) && self.end_of_minute_marker_present(false) {
-            self.second
+        if (58..=60).contains(&self.second) && self.end_of_minute_marker_present(false) {
+            self.second + 1
         } else if (self.second == 60) && self.end_of_minute_marker_present(true) {
             61
         } else {
@@ -255,12 +255,12 @@ impl MSFUtils {
     /// # Arguments
     /// * `look_ahead` - look ahead one second to check for a positive leap second
     pub fn end_of_minute_marker_present(&self, look_ahead: bool) -> bool {
-        if self.second < 8 {
+        if self.second < 7 {
             return false; // not enough bits to test
         }
         const MARKER: [bool; 8] = [false, true, true, true, true, true, true, false];
-        for (idx, bit) in self.bit_buffer_a[(self.second - 8 + look_ahead as u8) as usize
-            ..=(self.second - 1 + look_ahead as u8) as usize]
+        for (idx, bit) in self.bit_buffer_a[(self.second - 7 + look_ahead as u8) as usize
+            ..=(self.second + look_ahead as u8) as usize]
             .iter()
             .enumerate()
         {
@@ -283,7 +283,7 @@ impl MSFUtils {
         } else {
             self.second += 1;
             // wrap in case we missed the minute marker to prevent index-out-of-range
-            if self.second == minute_length + 1 || (self.second as usize) == BIT_BUFFER_SIZE {
+            if self.second == minute_length || (self.second as usize) == BIT_BUFFER_SIZE {
                 self.second = 0;
             }
         }
@@ -298,7 +298,7 @@ impl MSFUtils {
         if !self.first_minute {
             added_minute = self.radio_datetime.add_minute();
         }
-        if self.second == minute_length {
+        if self.second + 1 == minute_length {
             let offset: isize = match 60.cmp(&minute_length) {
                 Ordering::Less => 1,
                 Ordering::Equal => 0,
@@ -787,8 +787,8 @@ mod tests {
     #[test]
     fn test_eom_marker_too_short() {
         let mut msf = MSFUtils::default();
-        msf.second = 5; // something less than 8
-        for b in 0..=5 {
+        msf.second = 5; // something less than 7
+        for b in 0..=4 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
         assert_eq!(msf.end_of_minute_marker_present(false), false);
@@ -796,7 +796,7 @@ mod tests {
     #[test]
     fn test_eom_marker_absent() {
         let mut msf = MSFUtils::default();
-        msf.second = 60;
+        msf.second = 59;
         for b in 52..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
@@ -806,7 +806,7 @@ mod tests {
     #[test]
     fn test_eom_marker_absent_ahead() {
         let mut msf = MSFUtils::default();
-        msf.second = 60;
+        msf.second = 59;
         for b in 52..=59 {
             msf.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
         }
@@ -816,7 +816,7 @@ mod tests {
     #[test]
     fn test_eom_marker_present() {
         let mut msf = MSFUtils::default();
-        msf.second = 60;
+        msf.second = 59;
         for b in 52..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
@@ -825,7 +825,7 @@ mod tests {
     #[test]
     fn test_eom_marker_present_ahead() {
         let mut msf = MSFUtils::default();
-        msf.second = 60;
+        msf.second = 59;
         for b in 52..=59 {
             msf.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
         }
@@ -847,8 +847,8 @@ mod tests {
     #[test]
     fn test_decode_time_complete_minute_ok() {
         let mut msf = MSFUtils::default();
-        msf.second = 60;
-        assert_eq!(msf.get_minute_length(), msf.second);
+        msf.second = 59;
+        assert_eq!(msf.get_minute_length(), msf.second + 1);
         for b in 0..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
@@ -875,7 +875,7 @@ mod tests {
     #[test]
     fn test_decode_time_complete_minute_ok_negative_leap_second() {
         let mut msf = MSFUtils::default();
-        msf.second = 59;
+        msf.second = 58;
         for b in 0..=15 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
@@ -885,7 +885,7 @@ mod tests {
             msf.bit_buffer_a[b - 1] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b - 1] = Some(BIT_BUFFER_B[b]);
         }
-        assert_eq!(msf.get_minute_length(), msf.second);
+        assert_eq!(msf.get_minute_length(), msf.second + 1);
         msf.decode_time();
         // we should have a valid decoding:
         assert_eq!(msf.radio_datetime.get_minute(), Some(58));
@@ -908,7 +908,7 @@ mod tests {
     #[test]
     fn test_decode_time_complete_minute_ok_positive_leap_second() {
         let mut msf = MSFUtils::default();
-        msf.second = 61;
+        msf.second = 60;
         for b in 0..=16 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
@@ -920,7 +920,7 @@ mod tests {
             msf.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b + 1] = Some(BIT_BUFFER_B[b]);
         }
-        assert_eq!(msf.get_minute_length(), msf.second);
+        assert_eq!(msf.get_minute_length(), msf.second + 1);
         msf.decode_time();
         // we should have a valid decoding:
         assert_eq!(msf.radio_datetime.get_minute(), Some(58));
@@ -943,8 +943,8 @@ mod tests {
     #[test]
     fn test_decode_time_complete_minute_bad_bits() {
         let mut msf = MSFUtils::default();
-        msf.second = 60;
-        assert_eq!(msf.get_minute_length(), msf.second);
+        msf.second = 59;
+        assert_eq!(msf.get_minute_length(), msf.second + 1);
         for b in 0..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
@@ -974,8 +974,8 @@ mod tests {
     #[test]
     fn continue_decode_time_complete_minute_jumped_values() {
         let mut msf = MSFUtils::default();
-        msf.second = 60;
-        assert_eq!(msf.get_minute_length(), msf.second);
+        msf.second = 59;
+        assert_eq!(msf.get_minute_length(), msf.second + 1);
         for b in 0..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
@@ -1011,8 +1011,8 @@ mod tests {
     #[test]
     fn continue_decode_time_complete_minute_bad_bits() {
         let mut msf = MSFUtils::default();
-        msf.second = 60;
-        assert_eq!(msf.get_minute_length(), msf.second);
+        msf.second = 59;
+        assert_eq!(msf.get_minute_length(), msf.second + 1);
         for b in 0..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
@@ -1051,7 +1051,7 @@ mod tests {
     #[test]
     fn continue_decode_time_complete_minute_dst_change() {
         let mut msf = MSFUtils::default();
-        msf.second = 60;
+        msf.second = 59;
         for b in 0..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
@@ -1100,7 +1100,7 @@ mod tests {
     #[test]
     fn test_increase_second_same_minute_overflow() {
         let mut msf = MSFUtils::default();
-        msf.second = 60;
+        msf.second = 59;
         // leap second value is None, or 0111_1110 is "in the middle"
         msf.increase_second();
         assert_eq!(msf.first_minute, true);
@@ -1110,8 +1110,8 @@ mod tests {
     fn test_increase_second_new_minute_ok() {
         let mut msf = MSFUtils::default();
         msf.new_minute = true;
-        msf.second = 60;
-        assert_eq!(msf.get_minute_length(), msf.second);
+        msf.second = 59;
+        assert_eq!(msf.get_minute_length(), msf.second + 1);
         for b in 52..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
@@ -1123,7 +1123,7 @@ mod tests {
     fn test_increase_second_new_minute_none_values() {
         let mut msf = MSFUtils::default();
         msf.new_minute = true;
-        msf.second = 60;
+        msf.second = 59;
         // all date/time values left None
         msf.increase_second();
         assert_eq!(msf.first_minute, true);
