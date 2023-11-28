@@ -904,6 +904,7 @@ mod tests {
         );
         assert_eq!(msf.radio_datetime.get_leap_second(), None); // not available
         assert_eq!(msf.dut1, Some(-2));
+        assert_eq!(msf.first_minute, false);
     }
     #[test]
     fn test_decode_time_complete_minute_ok_positive_leap_second() {
@@ -939,6 +940,7 @@ mod tests {
         );
         assert_eq!(msf.radio_datetime.get_leap_second(), None); // not available
         assert_eq!(msf.dut1, Some(-2));
+        assert_eq!(msf.first_minute, false);
     }
     #[test]
     fn test_decode_time_complete_minute_bad_bits() {
