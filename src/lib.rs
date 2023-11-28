@@ -271,7 +271,7 @@ impl MSFUtils {
         true
     }
 
-    /// Increase or reset `second` and clear `first_minute` when appropriate.
+    /// Increase or reset `second`.
     ///
     /// This method must be called _after_ `decode_time()`, `handle_new_edge()`,
     /// `set_current_bit_a()`, `set_current_bit_b()`, `end_of_minute_marker_present()`
@@ -279,19 +279,6 @@ impl MSFUtils {
     pub fn increase_second(&mut self) {
         let minute_length = self.get_minute_length();
         if self.new_minute {
-            if self.first_minute
-                && self.second == minute_length
-                && self.radio_datetime.get_dst().is_some()
-                && self.radio_datetime.get_year().is_some()
-                && self.radio_datetime.get_month().is_some()
-                && self.radio_datetime.get_day().is_some()
-                && self.radio_datetime.get_weekday().is_some()
-                && self.radio_datetime.get_hour().is_some()
-                && self.radio_datetime.get_minute().is_some()
-            {
-                // allow displaying of information after the first properly decoded minute
-                self.first_minute = false;
-            }
             self.second = 0;
         } else {
             self.second += 1;
@@ -302,7 +289,7 @@ impl MSFUtils {
         }
     }
 
-    /// Decode the time broadcast during the last minute.
+    /// Decode the time broadcast during the last minute and clear `first_minute` when appropriate.
     ///
     /// This method must be called _before_ `increase_second()`
     pub fn decode_time(&mut self) {
@@ -419,6 +406,17 @@ impl MSFUtils {
                         None
                     };
                 }
+            }
+            if self.radio_datetime.get_dst().is_some()
+                && self.radio_datetime.get_year().is_some()
+                && self.radio_datetime.get_month().is_some()
+                && self.radio_datetime.get_day().is_some()
+                && self.radio_datetime.get_weekday().is_some()
+                && self.radio_datetime.get_hour().is_some()
+                && self.radio_datetime.get_minute().is_some()
+            {
+                // allow displaying of information after the first properly decoded minute
+                self.first_minute = false;
             }
 
             self.radio_datetime.bump_minutes_running();
@@ -1117,16 +1115,8 @@ mod tests {
         for b in 52..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
-        msf.radio_datetime.set_year(Some(22), true, false);
-        msf.radio_datetime.set_month(Some(10), true, false);
-        msf.radio_datetime.set_weekday(Some(6), true, false);
-        msf.radio_datetime.set_day(Some(22), true, false);
-        msf.radio_datetime.set_hour(Some(12), true, false);
-        msf.radio_datetime.set_minute(Some(59), true, false);
-        msf.radio_datetime.set_dst(Some(true), Some(false), false);
-        // leap second value is None
         msf.increase_second();
-        assert_eq!(msf.first_minute, false);
+        assert_eq!(msf.first_minute, true);
         assert_eq!(msf.second, 0);
     }
     #[test]
