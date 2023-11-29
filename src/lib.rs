@@ -254,7 +254,7 @@ impl MSFUtils {
             return false; // not enough bits to test
         }
         const MARKER: [bool; 8] = [false, true, true, true, true, true, true, false];
-        for (idx, bit) in self.bit_buffer_a[(self.second - 7) as usize..=(self.second) as usize]
+        for (idx, bit) in self.bit_buffer_a[(self.second - 7) as usize..=self.second as usize]
             .iter()
             .enumerate()
         {
