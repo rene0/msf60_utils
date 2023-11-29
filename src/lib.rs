@@ -239,10 +239,8 @@ impl MSFUtils {
 
     /// Determine the length of this minute in seconds.
     pub fn get_minute_length(&self) -> u8 {
-        if (58..=60).contains(&self.second) && self.end_of_minute_marker_present(false) {
+        if (58..=60).contains(&self.second) && self.end_of_minute_marker_present() {
             self.second + 1
-        } else if (self.second == 60) && self.end_of_minute_marker_present(true) {
-            61
         } else {
             60
         }
@@ -251,16 +249,12 @@ impl MSFUtils {
     /// Return if the end-of-minute marker (0111_1110) is present at the end of the A bits.
     ///
     /// This method must be called _before_ `increase_second()`
-    ///
-    /// # Arguments
-    /// * `look_ahead` - look ahead one second to check for a positive leap second
-    pub fn end_of_minute_marker_present(&self, look_ahead: bool) -> bool {
+    pub fn end_of_minute_marker_present(&self) -> bool {
         if self.second < 7 {
             return false; // not enough bits to test
         }
         const MARKER: [bool; 8] = [false, true, true, true, true, true, true, false];
-        for (idx, bit) in self.bit_buffer_a[(self.second - 7 + look_ahead as u8) as usize
-            ..=(self.second + look_ahead as u8) as usize]
+        for (idx, bit) in self.bit_buffer_a[(self.second - 7) as usize..=(self.second) as usize]
             .iter()
             .enumerate()
         {
@@ -791,7 +785,7 @@ mod tests {
         for b in 0..=4 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
-        assert_eq!(msf.end_of_minute_marker_present(false), false);
+        assert_eq!(msf.end_of_minute_marker_present(), false);
     }
     #[test]
     fn test_eom_marker_absent() {
@@ -801,17 +795,7 @@ mod tests {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
         msf.bit_buffer_a[57] = None; // introduce an error
-        assert_eq!(msf.end_of_minute_marker_present(false), false);
-    }
-    #[test]
-    fn test_eom_marker_absent_ahead() {
-        let mut msf = MSFUtils::default();
-        msf.second = 59;
-        for b in 52..=59 {
-            msf.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
-        }
-        msf.bit_buffer_a[57] = None; // introduce an error
-        assert_eq!(msf.end_of_minute_marker_present(true), false);
+        assert_eq!(msf.end_of_minute_marker_present(), false);
     }
     #[test]
     fn test_eom_marker_present() {
@@ -820,16 +804,7 @@ mod tests {
         for b in 52..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
-        assert_eq!(msf.end_of_minute_marker_present(false), true);
-    }
-    #[test]
-    fn test_eom_marker_present_ahead() {
-        let mut msf = MSFUtils::default();
-        msf.second = 59;
-        for b in 52..=59 {
-            msf.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
-        }
-        assert_eq!(msf.end_of_minute_marker_present(true), true);
+        assert_eq!(msf.end_of_minute_marker_present(), true);
     }
 
     #[test]
