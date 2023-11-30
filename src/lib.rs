@@ -828,6 +828,7 @@ mod tests {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
+        assert_eq!(msf.end_of_minute_marker_present(), true);
         msf.decode_time();
         // we should have a valid decoding:
         assert_eq!(msf.radio_datetime.get_minute(), Some(58));
@@ -860,6 +861,7 @@ mod tests {
             msf.bit_buffer_a[b - 1] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b - 1] = Some(BIT_BUFFER_B[b]);
         }
+        assert_eq!(msf.end_of_minute_marker_present(), true);
         assert_eq!(msf.get_minute_length(), msf.second + 1);
         msf.decode_time();
         // we should have a valid decoding:
@@ -896,6 +898,7 @@ mod tests {
             msf.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b + 1] = Some(BIT_BUFFER_B[b]);
         }
+        assert_eq!(msf.end_of_minute_marker_present(), true);
         assert_eq!(msf.get_minute_length(), msf.second + 1);
         msf.decode_time();
         // we should have a valid decoding:
@@ -1069,8 +1072,10 @@ mod tests {
     fn test_increase_second_same_minute_ok() {
         let mut msf = MSFUtils::default();
         msf.second = 37;
+        assert_eq!(msf.end_of_minute_marker_present(), false);
         // all date/time values are None
         msf.increase_second();
+        assert_eq!(msf.end_of_minute_marker_present(), false);
         assert_eq!(msf.first_minute, true);
         assert_eq!(msf.second, 38);
     }
@@ -1079,7 +1084,9 @@ mod tests {
         let mut msf = MSFUtils::default();
         msf.second = 59;
         // leap second value is None, or 0111_1110 is "in the middle"
+        assert_eq!(msf.end_of_minute_marker_present(), false);
         msf.increase_second();
+        assert_eq!(msf.end_of_minute_marker_present(), false);
         assert_eq!(msf.first_minute, true);
         assert_eq!(msf.second, 0);
     }
@@ -1092,7 +1099,9 @@ mod tests {
         for b in 52..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
+        assert_eq!(msf.end_of_minute_marker_present(), true);
         msf.increase_second();
+        assert_eq!(msf.end_of_minute_marker_present(), false);
         assert_eq!(msf.first_minute, true);
         assert_eq!(msf.second, 0);
     }
@@ -1101,8 +1110,10 @@ mod tests {
         let mut msf = MSFUtils::default();
         msf.new_minute = true;
         msf.second = 59;
+        assert_eq!(msf.end_of_minute_marker_present(), false);
         // all date/time values left None
         msf.increase_second();
+        assert_eq!(msf.end_of_minute_marker_present(), false);
         assert_eq!(msf.first_minute, true);
         assert_eq!(msf.second, 0);
     }
