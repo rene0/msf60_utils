@@ -28,7 +28,8 @@ pub const BIT_BUFFER_SIZE: usize = 61 + 1;
 /// MSF decoder class
 pub struct MSFUtils {
     first_minute: bool,
-    new_minute: bool,
+    new_minute: bool, // 0111_1110 marker seen
+    past_new_minute: bool, // long bit at begin-of-minute seen
     new_second: bool,
     second: u8,
     bit_buffer_a: [Option<bool>; BIT_BUFFER_SIZE],
@@ -51,6 +52,7 @@ impl MSFUtils {
         Self {
             first_minute: true,
             new_minute: false,
+            past_new_minute: false,
             new_second: false,
             second: 0,
             bit_buffer_a: [None; BIT_BUFFER_SIZE],
@@ -78,13 +80,39 @@ impl MSFUtils {
         self.new_minute
     }
 
-    /// Force the arrival of a new minute.
+    /// Return if the begin-of-minute marker has arrived.
+    pub fn get_past_new_minute(&self) -> bool {
+        self.past_new_minute
+    }
+
+    /// Force the arrival of a new minute (0111_1110 version).
     ///
     /// This could be useful when reading from a log file.
     ///
     /// This method must be called _before_ `increase_second()`
     pub fn force_new_minute(&mut self) {
         self.new_minute = true;
+        self.past_new_minute = false;
+    }
+
+    /// Helper for force_past_new_minute() and handle_edge()
+    #[inline]
+    fn set_past_new_minute(&mut self)
+    {
+        self.past_new_minute = true;
+        self.second = 0;
+        self.bit_buffer_a[0] = Some(true);
+        self.bit_buffer_b[0] = Some(true);
+    }
+
+    /// Force the arrival of a new minute (begin-of-minute version).
+    ///
+    /// This could be useful when reading from a log file.
+    ///
+    /// This method must be called _before_ `increase_second()`
+    pub fn force_past_new_minute(&mut self) {
+        self.new_minute = false;
+        self.set_past_new_minute();
     }
 
     /// Return if a new second has arrived.
@@ -118,6 +146,7 @@ impl MSFUtils {
     pub fn set_current_bit_a(&mut self, value: Option<bool>) {
         self.bit_buffer_a[self.second as usize] = value;
         self.new_minute = false;
+        self.past_new_minute = false;
     }
 
     /// Set the value of the current B bit and clear the flag indicating arrival of a new minute.
@@ -131,6 +160,7 @@ impl MSFUtils {
     pub fn set_current_bit_b(&mut self, value: Option<bool>) {
         self.bit_buffer_b[self.second as usize] = value;
         self.new_minute = false;
+        self.past_new_minute = false;
     }
 
     /// Get a copy of the date/time structure.
@@ -202,6 +232,7 @@ impl MSFUtils {
             return; // random positive or negative spike, ignore
         }
         self.new_minute = false;
+        self.past_new_minute = false;
         self.t0 = t;
         if is_low_edge {
             self.new_second = false;
@@ -213,6 +244,7 @@ impl MSFUtils {
                     self.bit_buffer_a[self.second as usize] = Some(false);
                     self.bit_buffer_b[self.second as usize] = Some(false);
                 }
+                self.new_minute = self.end_of_minute_marker_present();
             } else if t_diff < ACTIVE_A_LIMIT && self.old_t_diff > 1_000_000 - ACTIVE_AB_LIMIT {
                 self.bit_buffer_a[self.second as usize] = Some(true);
                 self.bit_buffer_b[self.second as usize] = Some(false);
@@ -220,9 +252,7 @@ impl MSFUtils {
                 self.bit_buffer_a[self.second as usize] = Some(true);
                 self.bit_buffer_b[self.second as usize] = Some(true);
             } else if t_diff < MINUTE_LIMIT && self.old_t_diff > 1_000_000 - ACTIVE_AB_LIMIT {
-                self.new_minute = true;
-                self.bit_buffer_a[0] = Some(true);
-                self.bit_buffer_b[0] = Some(true);
+                self.set_past_new_minute();
             } else {
                 // active runaway or first low edge
                 self.bit_buffer_a[self.second as usize] = None;
@@ -476,14 +506,14 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
         assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
         assert_eq!(msf.new_second, true);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), None); // not yet determined, passive part
         assert_eq!(msf.get_current_bit_b(), None); // not yet determined, passive part
 
         msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
         assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
         assert_eq!(msf.new_second, false);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(false));
         assert_eq!(msf.get_current_bit_b(), Some(false));
 
@@ -491,7 +521,7 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
         assert_eq!(msf.t0, EDGE_BUFFER[3].1); // longer than a spike
         assert_eq!(msf.new_second, true);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(false)); // keep bit value
         assert_eq!(msf.get_current_bit_b(), Some(false)); // keep bit value
     }
@@ -516,7 +546,7 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
         assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
         assert_eq!(msf.new_second, true);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), None); // not yet determined, passive part
         assert_eq!(msf.get_current_bit_b(), None); // not yet determined, passive part
 
@@ -524,7 +554,7 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
         assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
         assert_eq!(msf.new_second, false);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(false));
         assert_eq!(msf.get_current_bit_b(), Some(false));
 
@@ -532,7 +562,7 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
         assert_eq!(msf.t0, EDGE_BUFFER[3].1); // longer than a spike
         assert_eq!(msf.new_second, false);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(false));
         assert_eq!(msf.get_current_bit_b(), Some(false));
 
@@ -540,7 +570,7 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[4].0, EDGE_BUFFER[4].1);
         assert_eq!(msf.t0, EDGE_BUFFER[4].1); // longer than a spike
         assert_eq!(msf.new_second, false);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(false));
         assert_eq!(msf.get_current_bit_b(), Some(true));
 
@@ -548,7 +578,7 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[5].0, EDGE_BUFFER[5].1);
         assert_eq!(msf.t0, EDGE_BUFFER[5].1); // longer than a spike
         assert_eq!(msf.new_second, true);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(false)); // keep bit value
         assert_eq!(msf.get_current_bit_b(), Some(true)); // keep bit value
     }
@@ -570,14 +600,14 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
         assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
         assert_eq!(msf.new_second, true);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), None); // not yet determined, passive part
         assert_eq!(msf.get_current_bit_b(), None); // not yet determined, passive part
 
         msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
         assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
         assert_eq!(msf.new_second, false);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(true));
         assert_eq!(msf.get_current_bit_b(), Some(false));
 
@@ -585,7 +615,7 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
         assert_eq!(msf.t0, EDGE_BUFFER[3].1); // longer than a spike
         assert_eq!(msf.new_second, true);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(true)); // keep bit value
         assert_eq!(msf.get_current_bit_b(), Some(false)); // keep bit value
     }
@@ -607,14 +637,14 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
         assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
         assert_eq!(msf.new_second, true);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), None); // not yet determined, passive part
         assert_eq!(msf.get_current_bit_b(), None); // not yet determined, passive part
 
         msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
         assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
         assert_eq!(msf.new_second, false);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(true));
         assert_eq!(msf.get_current_bit_b(), Some(true));
 
@@ -622,7 +652,7 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
         assert_eq!(msf.t0, EDGE_BUFFER[3].1); // longer than a spike
         assert_eq!(msf.new_second, true);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(true)); // keep bit value
         assert_eq!(msf.get_current_bit_b(), Some(true)); // keep bit value
     }
@@ -643,14 +673,14 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
         assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
         assert_eq!(msf.new_second, true);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), None); // not yet determined
         assert_eq!(msf.get_current_bit_b(), None); // not yet determined
 
         msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1); // new minute
         assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
         assert_eq!(msf.new_second, false);
-        assert_eq!(msf.new_minute, true);
+        assert_eq!(msf.past_new_minute, true);
         assert_eq!(msf.get_current_bit_a(), Some(true));
         assert_eq!(msf.get_current_bit_b(), Some(true));
     }
@@ -671,14 +701,14 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
         assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
         assert_eq!(msf.new_second, true);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), None); // not yet determined, passive part
         assert_eq!(msf.get_current_bit_b(), None); // not yet determined, passive part
 
         msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
         assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
         assert_eq!(msf.new_second, false);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), None);
         assert_eq!(msf.get_current_bit_b(), None);
     }
@@ -700,14 +730,14 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
         assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
         assert_eq!(msf.new_second, true);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), None); // not yet determined, passive part
         assert_eq!(msf.get_current_bit_b(), None); // not yet determined, passive part
 
         msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
         assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
         assert_eq!(msf.new_second, false);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(false));
         assert_eq!(msf.get_current_bit_b(), Some(false));
 
@@ -715,7 +745,7 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
         assert_eq!(msf.t0, EDGE_BUFFER[3].1); // longer than a spike
         assert_eq!(msf.new_second, false);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), None);
         assert_eq!(msf.get_current_bit_b(), None);
     }
@@ -741,21 +771,21 @@ mod tests {
         msf.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
         assert_eq!(msf.t0, EDGE_BUFFER[1].1); // longer than a spike
         assert_eq!(msf.new_second, true);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), None); // not yet determined
         assert_eq!(msf.get_current_bit_b(), None); // not yet determined
 
         msf.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
         assert_eq!(msf.t0, EDGE_BUFFER[2].1); // longer than a spike
         assert_eq!(msf.new_second, false);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(true));
         assert_eq!(msf.get_current_bit_b(), Some(false));
 
         msf.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1); // first significant edge
         assert_eq!(msf.t0, EDGE_BUFFER[3].1); // longer than a spike
         assert_eq!(msf.new_second, true);
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(true)); // keep value
         assert_eq!(msf.get_current_bit_b(), Some(false)); // keep value
 
@@ -766,14 +796,14 @@ mod tests {
             msf.handle_new_edge(EDGE_BUFFER[i].0, EDGE_BUFFER[i].1);
             assert_eq!(msf.t0, spike);
             assert_eq!(msf.new_second, true);
-            assert_eq!(msf.new_minute, false);
+            assert_eq!(msf.past_new_minute, false);
             assert_eq!(msf.get_current_bit_a(), Some(true));
             assert_eq!(msf.get_current_bit_b(), Some(false));
         }
         msf.handle_new_edge(EDGE_BUFFER[7].0, EDGE_BUFFER[7].1);
         assert_eq!(msf.t0, EDGE_BUFFER[7].1); // longer than a spike
         assert_eq!(msf.new_second, true); // regular new second
-        assert_eq!(msf.new_minute, false);
+        assert_eq!(msf.past_new_minute, false);
         assert_eq!(msf.get_current_bit_a(), Some(true)); // keep value
         assert_eq!(msf.get_current_bit_b(), Some(false)); // keep value
     }
