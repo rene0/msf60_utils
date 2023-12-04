@@ -317,7 +317,7 @@ impl MSFUtils {
     ///
     /// This method must be called _before_ `increase_second()`
     pub fn decode_time(&mut self) {
-        let minute_length = self.get_minute_length();
+        let minute_length = self.get_minute_length(); // calculation depends on self.second
         let mut added_minute = false;
         if !self.first_minute {
             added_minute = self.radio_datetime.add_minute();
