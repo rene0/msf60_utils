@@ -431,7 +431,8 @@ impl MSFUtils {
                     };
                 }
             }
-            if self.radio_datetime.get_dst().is_some()
+            if self.dut1.is_some()
+	        && self.radio_datetime.get_dst().is_some()
                 && self.radio_datetime.get_year().is_some()
                 && self.radio_datetime.get_month().is_some()
                 && self.radio_datetime.get_day().is_some()
