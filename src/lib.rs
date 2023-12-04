@@ -28,7 +28,7 @@ pub const BIT_BUFFER_SIZE: usize = 61 + 1;
 /// MSF decoder class
 pub struct MSFUtils {
     first_minute: bool,
-    new_minute: bool, // 0111_1110 marker seen
+    new_minute: bool,      // 0111_1110 marker seen
     past_new_minute: bool, // long bit at begin-of-minute seen
     new_second: bool,
     second: u8,
@@ -97,8 +97,7 @@ impl MSFUtils {
 
     /// Helper for force_past_new_minute() and handle_edge()
     #[inline]
-    fn set_past_new_minute(&mut self)
-    {
+    fn set_past_new_minute(&mut self) {
         self.past_new_minute = true;
         self.second = 0;
         self.bit_buffer_a[0] = Some(true);
@@ -432,7 +431,7 @@ impl MSFUtils {
                 }
             }
             if self.dut1.is_some()
-	        && self.radio_datetime.get_dst().is_some()
+                && self.radio_datetime.get_dst().is_some()
                 && self.radio_datetime.get_year().is_some()
                 && self.radio_datetime.get_month().is_some()
                 && self.radio_datetime.get_day().is_some()
