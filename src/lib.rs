@@ -850,7 +850,7 @@ mod tests {
     fn test_decode_time_complete_minute_ok() {
         let mut msf = MSFUtils::default();
         msf.second = 59;
-        assert_eq!(msf.get_minute_length(), msf.second + 1);
+        assert_eq!(msf.get_minute_length(), msf.second + 1); // EOM marker absent
         for b in 0..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
@@ -951,7 +951,7 @@ mod tests {
     fn test_decode_time_complete_minute_bad_bits() {
         let mut msf = MSFUtils::default();
         msf.second = 59;
-        assert_eq!(msf.get_minute_length(), msf.second + 1);
+        assert_eq!(msf.get_minute_length(), msf.second + 1); // EOM marker absent
         for b in 0..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
@@ -982,7 +982,7 @@ mod tests {
     fn continue_decode_time_complete_minute_jumped_values() {
         let mut msf = MSFUtils::default();
         msf.second = 59;
-        assert_eq!(msf.get_minute_length(), msf.second + 1);
+        assert_eq!(msf.get_minute_length(), msf.second + 1); // EOM marker absent
         for b in 0..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
@@ -1019,7 +1019,7 @@ mod tests {
     fn continue_decode_time_complete_minute_bad_bits() {
         let mut msf = MSFUtils::default();
         msf.second = 59;
-        assert_eq!(msf.get_minute_length(), msf.second + 1);
+        assert_eq!(msf.get_minute_length(), msf.second + 1); // EOM marker absent
         for b in 0..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
@@ -1122,7 +1122,7 @@ mod tests {
         let mut msf = MSFUtils::default();
         msf.new_minute = true;
         msf.second = 59;
-        assert_eq!(msf.get_minute_length(), msf.second + 1);
+        assert_eq!(msf.get_minute_length(), msf.second + 1); // EOM marker absent
         for b in 52..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
