@@ -265,8 +265,10 @@ impl MSFUtils {
 
     /// Determine the length of this minute in seconds.
     pub fn get_minute_length(&self) -> u8 {
-        if (58..=60).contains(&self.second) && self.end_of_minute_marker_present() {
+        if (58..=60).contains(&self.second) && self.search_eom_marker(false) {
             self.second + 1
+        } else if self.second == 59 && self.search_eom_marker(true) {
+            61
         } else {
             60
         }
@@ -276,11 +278,17 @@ impl MSFUtils {
     ///
     /// This method must be called _before_ `increase_second()`
     pub fn end_of_minute_marker_present(&self) -> bool {
+        self.search_eom_marker(false)
+    }
+
+    /// Helper for end_of_minute_marker_present() and get_minute_length()
+    fn search_eom_marker(&self, predict: bool) -> bool {
         if self.second < 7 {
             return false; // not enough bits to test
         }
         const MARKER: [bool; 8] = [false, true, true, true, true, true, true, false];
-        for (idx, bit) in self.bit_buffer_a[(self.second - 7) as usize..=self.second as usize]
+        for (idx, bit) in self.bit_buffer_a
+            [(self.second - 7 + predict as u8) as usize..=self.second as usize]
             .iter()
             .enumerate()
         {
@@ -832,6 +840,59 @@ mod tests {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
         assert_eq!(msf.end_of_minute_marker_present(), true);
+    }
+
+    #[test]
+    fn test_running_negative_leap_second() {
+        let mut msf = MSFUtils::default();
+        msf.second = 51;
+        for b in 51..=57 {
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b + 1]);
+            assert_eq!(msf.end_of_minute_marker_present(), false); // not done yet
+            assert_eq!(msf.get_minute_length(), 60); // default for no EOM marker
+            msf.increase_second();
+        }
+        assert_eq!(msf.second, 58);
+        msf.bit_buffer_a[58] = Some(BIT_BUFFER_A[59]);
+        assert_eq!(msf.end_of_minute_marker_present(), true);
+        assert_eq!(msf.get_minute_length(), 59); // negative leap second
+    }
+    #[test]
+    fn test_running_no_leap_second() {
+        let mut msf = MSFUtils::default();
+        msf.second = 52;
+        for b in 52..=58 {
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            assert_eq!(msf.end_of_minute_marker_present(), false); // not done yet
+            assert_eq!(msf.get_minute_length(), 60); // default for no EOM marker
+            msf.increase_second();
+        }
+        assert_eq!(msf.second, 59);
+        msf.bit_buffer_a[59] = Some(BIT_BUFFER_A[59]);
+        assert_eq!(msf.end_of_minute_marker_present(), true);
+        assert_eq!(msf.get_minute_length(), 60); // no leap second
+    }
+    #[test]
+    fn test_running_positive_leap_second() {
+        let mut msf = MSFUtils::default();
+        msf.second = 53;
+        for b in 53..=58 {
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b - 1]);
+            assert_eq!(msf.end_of_minute_marker_present(), false); // not done yet
+            assert_eq!(msf.get_minute_length(), 60); // default for no EOM marker
+            msf.increase_second();
+        }
+        assert_eq!(msf.second, 59);
+        msf.bit_buffer_a[59] = Some(BIT_BUFFER_A[58]);
+        assert_eq!(msf.end_of_minute_marker_present(), false);
+        assert_eq!(msf.search_eom_marker(true), true);
+        assert_eq!(msf.get_minute_length(), 61); // positive leap second (without trailing 0 bit)
+        msf.increase_second();
+        assert_eq!(msf.second, 60);
+        msf.bit_buffer_a[60] = Some(BIT_BUFFER_A[59]);
+        assert_eq!(msf.end_of_minute_marker_present(), true);
+        assert_eq!(msf.search_eom_marker(true), false);
+        assert_eq!(msf.get_minute_length(), 61); // positive leap second (without trailing 0 bit)
     }
 
     #[test]
