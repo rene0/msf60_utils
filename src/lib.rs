@@ -95,15 +95,6 @@ impl MSFUtils {
         self.past_new_minute = false;
     }
 
-    /// Helper for force_past_new_minute() and handle_edge()
-    #[inline]
-    fn set_past_new_minute(&mut self) {
-        self.past_new_minute = true;
-        self.second = 0;
-        self.bit_buffer_a[0] = Some(true);
-        self.bit_buffer_b[0] = Some(true);
-    }
-
     /// Force the arrival of a new minute (begin-of-minute version).
     ///
     /// This could be useful when reading from a log file.
@@ -111,7 +102,10 @@ impl MSFUtils {
     /// This method must be called _before_ `increase_second()`
     pub fn force_past_new_minute(&mut self) {
         self.new_minute = false;
-        self.set_past_new_minute();
+        self.past_new_minute = true;
+        self.second = 0;
+        self.bit_buffer_a[0] = Some(true);
+        self.bit_buffer_b[0] = Some(true);
     }
 
     /// Return if a new second has arrived.
@@ -251,7 +245,10 @@ impl MSFUtils {
                 self.bit_buffer_a[self.second as usize] = Some(true);
                 self.bit_buffer_b[self.second as usize] = Some(true);
             } else if t_diff < MINUTE_LIMIT && self.old_t_diff > 1_000_000 - ACTIVE_AB_LIMIT {
-                self.set_past_new_minute();
+                self.past_new_minute = true;
+                self.second = 0;
+                self.bit_buffer_a[0] = Some(true);
+                self.bit_buffer_b[0] = Some(true);
             } else {
                 // active runaway or first low edge
                 self.bit_buffer_a[self.second as usize] = None;
