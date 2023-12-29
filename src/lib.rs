@@ -21,10 +21,6 @@ const MINUTE_LIMIT: u32 = 550_000;
 /// Signal is considered lost after this many microseconds
 const PASSIVE_RUNAWAY: u32 = 1_500_000;
 
-/// Size of bit buffer in seconds plus one spare because we cannot know
-/// which method accessing the buffer is called after increase_second().
-pub const BIT_BUFFER_SIZE: usize = 61 + 1;
-
 /// MSF decoder class
 pub struct MSFUtils {
     first_minute: bool,
@@ -32,8 +28,8 @@ pub struct MSFUtils {
     past_new_minute: bool, // long bit at begin-of-minute seen
     new_second: bool,
     second: u8,
-    bit_buffer_a: [Option<bool>; BIT_BUFFER_SIZE],
-    bit_buffer_b: [Option<bool>; BIT_BUFFER_SIZE],
+    bit_buffer_a: [Option<bool>; radio_datetime_utils::BIT_BUFFER_SIZE],
+    bit_buffer_b: [Option<bool>; radio_datetime_utils::BIT_BUFFER_SIZE],
     radio_datetime: RadioDateTimeUtils,
     parity_1: Option<bool>,
     parity_2: Option<bool>,
@@ -55,8 +51,8 @@ impl MSFUtils {
             past_new_minute: false,
             new_second: false,
             second: 0,
-            bit_buffer_a: [None; BIT_BUFFER_SIZE],
-            bit_buffer_b: [None; BIT_BUFFER_SIZE],
+            bit_buffer_a: [None; radio_datetime_utils::BIT_BUFFER_SIZE],
+            bit_buffer_b: [None; radio_datetime_utils::BIT_BUFFER_SIZE],
             radio_datetime: RadioDateTimeUtils::new(0),
             parity_1: None,
             parity_2: None,
@@ -301,20 +297,15 @@ impl MSFUtils {
 
     /// Increase or reset `second`.
     ///
+    /// Returns if the second counter was increased/wrapped normally (true)
+    /// or due to an overflow (false).
+    ///
     /// This method must be called _after_ `decode_time()`, `handle_new_edge()`,
     /// `set_current_bit_a()`, `set_current_bit_b()`, `end_of_minute_marker_present()`
     /// and `force_new_minute()`.
-    pub fn increase_second(&mut self) {
+    pub fn increase_second(&mut self) -> bool {
         let minute_length = self.get_minute_length();
-        if self.new_minute {
-            self.second = 0;
-        } else {
-            self.second += 1;
-            // wrap in case we missed the minute marker to prevent index-out-of-range
-            if self.second == minute_length || (self.second as usize) == BIT_BUFFER_SIZE {
-                self.second = 0;
-            }
-        }
+        RadioDateTimeUtils::increase_second(&mut self.second, self.new_minute, minute_length)
     }
 
     /// Decode the time broadcast during the last minute and clear `first_minute` when appropriate.
