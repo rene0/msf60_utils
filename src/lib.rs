@@ -308,6 +308,13 @@ impl MSFUtils {
         RadioDateTimeUtils::increase_second(&mut self.second, self.new_minute, minute_length)
     }
 
+    /// Call add_minute() on `self.radio_datetime` and passes on that result.
+    ///
+    /// This could be useful for consumers just wanting to advance their current date/time.
+    pub fn add_minute(&mut self) -> bool {
+        self.radio_datetime.add_minute()
+    }
+
     /// Decode the time broadcast during the last minute and clear `first_minute` when appropriate.
     ///
     /// This method must be called _before_ `increase_second()`
