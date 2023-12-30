@@ -833,7 +833,7 @@ mod tests {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b + 1]);
             assert_eq!(msf.end_of_minute_marker_present(), false); // not done yet
             assert_eq!(msf.get_minute_length(), 60); // default for no EOM marker
-            msf.increase_second();
+            assert_eq!(msf.increase_second(), true);
         }
         assert_eq!(msf.second, 58);
         msf.bit_buffer_a[58] = Some(BIT_BUFFER_A[59]);
@@ -848,7 +848,7 @@ mod tests {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             assert_eq!(msf.end_of_minute_marker_present(), false); // not done yet
             assert_eq!(msf.get_minute_length(), 60); // default for no EOM marker
-            msf.increase_second();
+            assert_eq!(msf.increase_second(), true);
         }
         assert_eq!(msf.second, 59);
         msf.bit_buffer_a[59] = Some(BIT_BUFFER_A[59]);
@@ -863,14 +863,14 @@ mod tests {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b - 1]);
             assert_eq!(msf.end_of_minute_marker_present(), false); // not done yet
             assert_eq!(msf.get_minute_length(), 60); // default for no EOM marker
-            msf.increase_second();
+            assert_eq!(msf.increase_second(), true);
         }
         assert_eq!(msf.second, 59);
         msf.bit_buffer_a[59] = Some(BIT_BUFFER_A[58]);
         assert_eq!(msf.end_of_minute_marker_present(), false);
         assert_eq!(msf.search_eom_marker(true), true);
         assert_eq!(msf.get_minute_length(), 61); // positive leap second (without trailing 0 bit)
-        msf.increase_second();
+        assert_eq!(msf.increase_second(), true);
         assert_eq!(msf.second, 60);
         msf.bit_buffer_a[60] = Some(BIT_BUFFER_A[59]);
         assert_eq!(msf.end_of_minute_marker_present(), true);
@@ -1145,7 +1145,7 @@ mod tests {
         msf.second = 37;
         assert_eq!(msf.end_of_minute_marker_present(), false);
         // all date/time values are None
-        msf.increase_second();
+        assert_eq!(msf.increase_second(), true);
         assert_eq!(msf.end_of_minute_marker_present(), false);
         assert_eq!(msf.first_minute, true);
         assert_eq!(msf.second, 38);
@@ -1156,7 +1156,7 @@ mod tests {
         msf.second = 59;
         // leap second value is None, or 0111_1110 is "in the middle"
         assert_eq!(msf.end_of_minute_marker_present(), false);
-        msf.increase_second();
+        assert_eq!(msf.increase_second(), false);
         assert_eq!(msf.end_of_minute_marker_present(), false);
         assert_eq!(msf.first_minute, true);
         assert_eq!(msf.second, 0);
@@ -1171,7 +1171,7 @@ mod tests {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
         }
         assert_eq!(msf.end_of_minute_marker_present(), true);
-        msf.increase_second();
+        assert_eq!(msf.increase_second(), true);
         assert_eq!(msf.end_of_minute_marker_present(), false);
         assert_eq!(msf.first_minute, true);
         assert_eq!(msf.second, 0);
@@ -1183,7 +1183,7 @@ mod tests {
         msf.second = 59;
         assert_eq!(msf.end_of_minute_marker_present(), false);
         // all date/time values left None
-        msf.increase_second();
+        assert_eq!(msf.increase_second(), true);
         assert_eq!(msf.end_of_minute_marker_present(), false);
         assert_eq!(msf.first_minute, true);
         assert_eq!(msf.second, 0);
