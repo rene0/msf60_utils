@@ -312,6 +312,7 @@ impl MSFUtils {
     ///
     /// This could be useful for consumers just wanting to advance their current date/time.
     pub fn add_minute(&mut self) -> bool {
+        self.radio_datetime.clear_jumps();
         self.radio_datetime.add_minute()
     }
 
@@ -319,6 +320,7 @@ impl MSFUtils {
     ///
     /// This method must be called _before_ `increase_second()`
     pub fn decode_time(&mut self) {
+        self.radio_datetime.clear_jumps();
         let minute_length = self.get_minute_length(); // calculation depends on self.second
         let mut added_minute = false;
         if !self.first_minute {
