@@ -336,6 +336,7 @@ impl MSFUtils {
                 Ordering::Equal => 0,
                 Ordering::Greater => -1,
             };
+
             self.parity_1 = radio_datetime_helpers::get_parity(
                 &self.bit_buffer_a,
                 (17 + offset) as usize,
@@ -420,7 +421,6 @@ impl MSFUtils {
                 },
                 added_minute && !self.first_minute,
             );
-
             self.radio_datetime.set_day(
                 radio_datetime_helpers::get_bcd_value(
                     &self.bit_buffer_a,
