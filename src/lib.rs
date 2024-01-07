@@ -319,7 +319,11 @@ impl MSFUtils {
     /// Decode the time broadcast during the last minute and clear `first_minute` when appropriate.
     ///
     /// This method must be called _before_ `increase_second()`
-    pub fn decode_time(&mut self) {
+    ///
+    /// # Arguments
+    /// * `strict_checks` - checks all parities, DUT1 validity, and EOM marker presence when setting
+    ///                     date/time and clearing self.first_minute
+    pub fn decode_time(&mut self, strict_checks: bool) {
         self.radio_datetime.clear_jumps();
         let minute_length = self.get_minute_length(); // calculation depends on self.second
         let mut added_minute = false;
@@ -338,21 +342,57 @@ impl MSFUtils {
                 (24 + offset) as usize,
                 self.bit_buffer_b[(54 + offset) as usize],
             );
+            self.parity_2 = radio_datetime_helpers::get_parity(
+                &self.bit_buffer_a,
+                (25 + offset) as usize,
+                (35 + offset) as usize,
+                self.bit_buffer_b[(55 + offset) as usize],
+            );
+            self.parity_3 = radio_datetime_helpers::get_parity(
+                &self.bit_buffer_a,
+                (36 + offset) as usize,
+                (38 + offset) as usize,
+                self.bit_buffer_b[(56 + offset) as usize],
+            );
+            self.parity_4 = radio_datetime_helpers::get_parity(
+                &self.bit_buffer_a,
+                (39 + offset) as usize,
+                (51 + offset) as usize,
+                self.bit_buffer_b[(57 + offset) as usize],
+            );
+
+            self.dut1 = None;
+            // bit 16 is dropped in case of a negative leap second
+            let stop = if offset == -1 { 15 } else { 16 };
+            if let Some(dut1p) = msf_helpers::get_unary_value(&self.bit_buffer_b, 1, 8) {
+                if let Some(dut1n) = msf_helpers::get_unary_value(&self.bit_buffer_b, 9, stop) {
+                    self.dut1 = if dut1p * dut1n == 0 {
+                        Some(dut1p - dut1n)
+                    } else {
+                        None
+                    };
+                }
+            }
+
+            let strict_ok = self.parity_1 == Some(true)
+                && self.parity_2 == Some(true)
+                && self.parity_3 == Some(true)
+                && self.parity_4 == Some(true)
+                && self.dut1.is_some()
+                && self.end_of_minute_marker_present();
+
             self.radio_datetime.set_year(
                 radio_datetime_helpers::get_bcd_value(
                     &self.bit_buffer_a,
                     (24 + offset) as usize,
                     (17 + offset) as usize,
                 ),
-                self.parity_1 == Some(true),
+                if strict_checks {
+                    strict_ok
+                } else {
+                    self.parity_1 == Some(true)
+                },
                 added_minute && !self.first_minute,
-            );
-
-            self.parity_2 = radio_datetime_helpers::get_parity(
-                &self.bit_buffer_a,
-                (25 + offset) as usize,
-                (35 + offset) as usize,
-                self.bit_buffer_b[(55 + offset) as usize],
             );
             self.radio_datetime.set_month(
                 radio_datetime_helpers::get_bcd_value(
@@ -360,15 +400,12 @@ impl MSFUtils {
                     (29 + offset) as usize,
                     (25 + offset) as usize,
                 ),
-                self.parity_2 == Some(true),
+                if strict_checks {
+                    strict_ok
+                } else {
+                    self.parity_2 == Some(true)
+                },
                 added_minute && !self.first_minute,
-            );
-
-            self.parity_3 = radio_datetime_helpers::get_parity(
-                &self.bit_buffer_a,
-                (36 + offset) as usize,
-                (38 + offset) as usize,
-                self.bit_buffer_b[(56 + offset) as usize],
             );
             self.radio_datetime.set_weekday(
                 radio_datetime_helpers::get_bcd_value(
@@ -376,7 +413,11 @@ impl MSFUtils {
                     (38 + offset) as usize,
                     (36 + offset) as usize,
                 ),
-                self.parity_3 == Some(true),
+                if strict_checks {
+                    strict_ok
+                } else {
+                    self.parity_3 == Some(true)
+                },
                 added_minute && !self.first_minute,
             );
 
@@ -386,25 +427,27 @@ impl MSFUtils {
                     (35 + offset) as usize,
                     (30 + offset) as usize,
                 ),
-                self.parity_1 == Some(true)
-                    && self.parity_2 == Some(true)
-                    && self.parity_3 == Some(true),
+                if strict_checks {
+                    strict_ok
+                } else {
+                    self.parity_1 == Some(true)
+                        && self.parity_2 == Some(true)
+                        && self.parity_3 == Some(true)
+                },
                 added_minute && !self.first_minute,
             );
 
-            self.parity_4 = radio_datetime_helpers::get_parity(
-                &self.bit_buffer_a,
-                (39 + offset) as usize,
-                (51 + offset) as usize,
-                self.bit_buffer_b[(57 + offset) as usize],
-            );
             self.radio_datetime.set_hour(
                 radio_datetime_helpers::get_bcd_value(
                     &self.bit_buffer_a,
                     (44 + offset) as usize,
                     (39 + offset) as usize,
                 ),
-                self.parity_4 == Some(true),
+                if strict_checks {
+                    strict_ok
+                } else {
+                    self.parity_4 == Some(true)
+                },
                 added_minute && !self.first_minute,
             );
             self.radio_datetime.set_minute(
@@ -413,7 +456,11 @@ impl MSFUtils {
                     (51 + offset) as usize,
                     (45 + offset) as usize,
                 ),
-                self.parity_4 == Some(true),
+                if strict_checks {
+                    strict_ok
+                } else {
+                    self.parity_4 == Some(true)
+                },
                 added_minute && !self.first_minute,
             );
 
@@ -423,19 +470,12 @@ impl MSFUtils {
                 added_minute && !self.first_minute,
             );
 
-            self.dut1 = None;
-            if let Some(dut1p) = msf_helpers::get_unary_value(&self.bit_buffer_b, 1, 8) {
-                // bit 16 is dropped in case of a negative leap second
-                let stop = if offset == -1 { 15 } else { 16 };
-                if let Some(dut1n) = msf_helpers::get_unary_value(&self.bit_buffer_b, 9, stop) {
-                    self.dut1 = if dut1p * dut1n == 0 {
-                        Some(dut1p - dut1n)
-                    } else {
-                        None
-                    };
-                }
-            }
-            if self.dut1.is_some() && self.radio_datetime.is_valid() {
+            if if strict_checks {
+                strict_ok
+            } else {
+                self.dut1.is_some()
+            } && self.radio_datetime.is_valid()
+            {
                 // allow displaying of information after the first properly decoded minute
                 self.first_minute = false;
             }
@@ -895,7 +935,7 @@ mod tests {
         // note that msf.bit_buffer_[ab] are still empty
         assert_ne!(msf.get_minute_length(), msf.second);
         assert_eq!(msf.parity_1, None);
-        msf.decode_time();
+        msf.decode_time(false);
         // not enough seconds in this minute, so nothing should happen:
         assert_eq!(msf.parity_1, None);
     }
@@ -909,7 +949,7 @@ mod tests {
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
         assert_eq!(msf.end_of_minute_marker_present(), true);
-        msf.decode_time();
+        msf.decode_time(false);
         // we should have a valid decoding:
         assert_eq!(msf.radio_datetime.get_minute(), Some(58));
         assert_eq!(msf.radio_datetime.get_hour(), Some(14));
@@ -943,7 +983,7 @@ mod tests {
         }
         assert_eq!(msf.end_of_minute_marker_present(), true);
         assert_eq!(msf.get_minute_length(), msf.second + 1);
-        msf.decode_time();
+        msf.decode_time(false);
         // we should have a valid decoding:
         assert_eq!(msf.radio_datetime.get_minute(), Some(58));
         assert_eq!(msf.radio_datetime.get_hour(), Some(14));
@@ -980,7 +1020,7 @@ mod tests {
         }
         assert_eq!(msf.end_of_minute_marker_present(), true);
         assert_eq!(msf.get_minute_length(), msf.second + 1);
-        msf.decode_time();
+        msf.decode_time(false);
         // we should have a valid decoding:
         assert_eq!(msf.radio_datetime.get_minute(), Some(58));
         assert_eq!(msf.radio_datetime.get_hour(), Some(14));
@@ -1013,7 +1053,7 @@ mod tests {
         msf.bit_buffer_b[1] = Some(true); // now both 1-8 and 9-16 are positive, which is an error
         msf.bit_buffer_a[31] = None; // None hour
         msf.bit_buffer_a[48] = Some(!msf.bit_buffer_a[48].unwrap());
-        msf.decode_time();
+        msf.decode_time(false);
         assert_eq!(msf.radio_datetime.get_minute(), None); // bad parity and first decoding
         assert_eq!(msf.radio_datetime.get_hour(), None); // bad parity and first decoding
         assert_eq!(msf.radio_datetime.get_weekday(), Some(6));
@@ -1040,12 +1080,12 @@ mod tests {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
-        msf.decode_time();
+        msf.decode_time(false);
         assert_eq!(msf.radio_datetime.get_minute(), Some(58));
         assert_eq!(msf.radio_datetime.get_jump_minute(), false);
         msf.first_minute = false;
         // minute 58 is really cool, so do not update bit 51 (and 57)
-        msf.decode_time();
+        msf.decode_time(false);
         assert_eq!(msf.radio_datetime.get_minute(), Some(58));
         assert_eq!(msf.radio_datetime.get_hour(), Some(14));
         assert_eq!(msf.radio_datetime.get_weekday(), Some(6));
@@ -1077,7 +1117,7 @@ mod tests {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
-        msf.decode_time();
+        msf.decode_time(false);
         msf.first_minute = false;
         // update for the next minute:
         msf.bit_buffer_a[51] = Some(true);
@@ -1085,7 +1125,7 @@ mod tests {
         // introduce some distortions:
         msf.bit_buffer_a[31] = None; // None hour
         msf.bit_buffer_a[48] = Some(!msf.bit_buffer_a[48].unwrap());
-        msf.decode_time();
+        msf.decode_time(false);
         assert_eq!(msf.radio_datetime.get_minute(), Some(59)); // bad parity
         assert_eq!(msf.radio_datetime.get_hour(), Some(14));
         assert_eq!(msf.radio_datetime.get_weekday(), Some(6)); // broken parity
@@ -1122,7 +1162,7 @@ mod tests {
         msf.bit_buffer_b[57] = Some(true);
         // announce a DST change:
         msf.bit_buffer_b[53] = Some(true);
-        msf.decode_time();
+        msf.decode_time(false);
         assert_eq!(msf.radio_datetime.get_minute(), Some(59));
         assert_eq!(
             msf.radio_datetime.get_dst(),
@@ -1139,7 +1179,7 @@ mod tests {
         msf.bit_buffer_b[53] = Some(true);
         msf.bit_buffer_b[58] = Some(false);
         // leave msf.fist_minute true on purpose to catch minute-length bugs
-        msf.decode_time();
+        msf.decode_time(false);
         assert_eq!(msf.radio_datetime.get_minute(), Some(0));
         assert_eq!(msf.radio_datetime.get_hour(), Some(15));
         assert_eq!(
