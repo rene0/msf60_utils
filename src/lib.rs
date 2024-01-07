@@ -927,6 +927,7 @@ mod tests {
         assert_eq!(msf.get_minute_length(), 61); // positive leap second (without trailing 0 bit)
     }
 
+    // relaxed checks
     #[test]
     fn test_decode_time_incomplete_minute() {
         let mut msf = MSFUtils::default();
@@ -1083,7 +1084,7 @@ mod tests {
         msf.decode_time(false);
         assert_eq!(msf.radio_datetime.get_minute(), Some(58));
         assert_eq!(msf.radio_datetime.get_jump_minute(), false);
-        msf.first_minute = false;
+        assert_eq!(msf.first_minute, false);
         // minute 58 is really cool, so do not update bit 51 (and 57)
         msf.decode_time(false);
         assert_eq!(msf.radio_datetime.get_minute(), Some(58));
@@ -1118,7 +1119,7 @@ mod tests {
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
         msf.decode_time(false);
-        msf.first_minute = false;
+        assert_eq!(msf.first_minute, false);
         // update for the next minute:
         msf.bit_buffer_a[51] = Some(true);
         msf.bit_buffer_b[57] = Some(true);
@@ -1178,8 +1179,268 @@ mod tests {
         // which will have a DST change:
         msf.bit_buffer_b[53] = Some(true);
         msf.bit_buffer_b[58] = Some(false);
-        // leave msf.fist_minute true on purpose to catch minute-length bugs
         msf.decode_time(false);
+        assert_eq!(msf.radio_datetime.get_minute(), Some(0));
+        assert_eq!(msf.radio_datetime.get_hour(), Some(15));
+        assert_eq!(
+            msf.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_PROCESSED)
+        ); // DST flipped off
+    }
+
+    // strict checks
+    #[test]
+    fn test_decode_time_incomplete_minute_strict() {
+        let mut msf = MSFUtils::default();
+        assert_eq!(msf.first_minute, true);
+        msf.second = 42;
+        // note that msf.bit_buffer_[ab] are still empty
+        assert_ne!(msf.get_minute_length(), msf.second);
+        assert_eq!(msf.parity_1, None);
+        msf.decode_time(true);
+        // not enough seconds in this minute, so nothing should happen:
+        assert_eq!(msf.parity_1, None);
+    }
+    #[test]
+    fn test_decode_time_complete_minute_ok_strict() {
+        let mut msf = MSFUtils::default();
+        msf.second = 59;
+        assert_eq!(msf.get_minute_length(), msf.second + 1); // EOM marker absent
+        for b in 0..=59 {
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+        }
+        assert_eq!(msf.end_of_minute_marker_present(), true);
+        msf.decode_time(true);
+        // we should have a valid decoding:
+        assert_eq!(msf.radio_datetime.get_minute(), Some(58));
+        assert_eq!(msf.radio_datetime.get_hour(), Some(14));
+        assert_eq!(msf.radio_datetime.get_weekday(), Some(6));
+        assert_eq!(msf.radio_datetime.get_day(), Some(23));
+        assert_eq!(msf.radio_datetime.get_month(), Some(10));
+        assert_eq!(msf.radio_datetime.get_year(), Some(22));
+        assert_eq!(msf.parity_1, Some(true));
+        assert_eq!(msf.parity_2, Some(true));
+        assert_eq!(msf.parity_3, Some(true));
+        assert_eq!(msf.parity_4, Some(true));
+        assert_eq!(
+            msf.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
+        assert_eq!(msf.radio_datetime.get_leap_second(), None); // not available
+        assert_eq!(msf.dut1, Some(-2));
+    }
+    #[test]
+    fn test_decode_time_complete_minute_ok_negative_leap_second_strict() {
+        let mut msf = MSFUtils::default();
+        msf.second = 58;
+        for b in 0..=15 {
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+        }
+        // bit 16 removed
+        for b in 17..=59 {
+            msf.bit_buffer_a[b - 1] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b - 1] = Some(BIT_BUFFER_B[b]);
+        }
+        assert_eq!(msf.end_of_minute_marker_present(), true);
+        assert_eq!(msf.get_minute_length(), msf.second + 1);
+        msf.decode_time(true);
+        // we should have a valid decoding:
+        assert_eq!(msf.radio_datetime.get_minute(), Some(58));
+        assert_eq!(msf.radio_datetime.get_hour(), Some(14));
+        assert_eq!(msf.radio_datetime.get_weekday(), Some(6));
+        assert_eq!(msf.radio_datetime.get_day(), Some(23));
+        assert_eq!(msf.radio_datetime.get_month(), Some(10));
+        assert_eq!(msf.radio_datetime.get_year(), Some(22));
+        assert_eq!(msf.parity_1, Some(true));
+        assert_eq!(msf.parity_2, Some(true));
+        assert_eq!(msf.parity_3, Some(true));
+        assert_eq!(msf.parity_4, Some(true));
+        assert_eq!(
+            msf.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
+        assert_eq!(msf.radio_datetime.get_leap_second(), None); // not available
+        assert_eq!(msf.dut1, Some(-2));
+        assert_eq!(msf.first_minute, false);
+    }
+    #[test]
+    fn test_decode_time_complete_minute_ok_positive_leap_second_strict() {
+        let mut msf = MSFUtils::default();
+        msf.second = 60;
+        for b in 0..=16 {
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+        }
+        // insert the positive leap second, left None on purpose (it should not affect decoding)
+        msf.bit_buffer_a[17] = None;
+        msf.bit_buffer_b[17] = None;
+        for b in 17..=59 {
+            msf.bit_buffer_a[b + 1] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b + 1] = Some(BIT_BUFFER_B[b]);
+        }
+        assert_eq!(msf.end_of_minute_marker_present(), true);
+        assert_eq!(msf.get_minute_length(), msf.second + 1);
+        msf.decode_time(true);
+        // we should have a valid decoding:
+        assert_eq!(msf.radio_datetime.get_minute(), Some(58));
+        assert_eq!(msf.radio_datetime.get_hour(), Some(14));
+        assert_eq!(msf.radio_datetime.get_weekday(), Some(6));
+        assert_eq!(msf.radio_datetime.get_day(), Some(23));
+        assert_eq!(msf.radio_datetime.get_month(), Some(10));
+        assert_eq!(msf.radio_datetime.get_year(), Some(22));
+        assert_eq!(msf.parity_1, Some(true));
+        assert_eq!(msf.parity_2, Some(true));
+        assert_eq!(msf.parity_3, Some(true));
+        assert_eq!(msf.parity_4, Some(true));
+        assert_eq!(
+            msf.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
+        assert_eq!(msf.radio_datetime.get_leap_second(), None); // not available
+        assert_eq!(msf.dut1, Some(-2));
+        assert_eq!(msf.first_minute, false);
+    }
+    #[test]
+    fn test_decode_time_complete_minute_bad_bits_strict() {
+        let mut msf = MSFUtils::default();
+        msf.second = 59;
+        assert_eq!(msf.get_minute_length(), msf.second + 1); // EOM marker absent
+        for b in 0..=59 {
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+        }
+        // introduce some distortions:
+        msf.bit_buffer_b[1] = Some(true); // now both 1-8 and 9-16 are positive, which is an error
+        msf.bit_buffer_a[31] = None; // None hour
+        msf.bit_buffer_a[48] = Some(!msf.bit_buffer_a[48].unwrap());
+        msf.decode_time(true);
+        assert_eq!(msf.radio_datetime.get_minute(), None); // bad parity and first decoding
+        assert_eq!(msf.radio_datetime.get_hour(), None); // bad parity and first decoding
+        assert_eq!(msf.radio_datetime.get_weekday(), None); // strict check failed
+        assert_eq!(msf.radio_datetime.get_day(), None); // broken bit
+        assert_eq!(msf.radio_datetime.get_month(), None); // broken parity and first decoding
+        assert_eq!(msf.radio_datetime.get_year(), None); // strict check failed
+        assert_eq!(msf.parity_1, Some(true));
+        assert_eq!(msf.parity_2, None); // broken bit
+        assert_eq!(msf.parity_3, Some(true));
+        assert_eq!(msf.parity_4, Some(false)); // bad parity
+        assert_eq!(
+            msf.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        ); // not affected by strict checking
+        assert_eq!(msf.radio_datetime.get_leap_second(), None);
+        assert_eq!(msf.dut1, None);
+    }
+    #[test]
+    fn continue_decode_time_complete_minute_jumped_values_strict() {
+        let mut msf = MSFUtils::default();
+        msf.second = 59;
+        assert_eq!(msf.get_minute_length(), msf.second + 1); // EOM marker absent
+        for b in 0..=59 {
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+        }
+        msf.decode_time(true);
+        assert_eq!(msf.radio_datetime.get_minute(), Some(58));
+        assert_eq!(msf.radio_datetime.get_jump_minute(), false);
+        msf.first_minute = false;
+        // minute 58 is really cool, so do not update bit 51 (and 57)
+        msf.decode_time(true);
+        assert_eq!(msf.radio_datetime.get_minute(), Some(58));
+        assert_eq!(msf.radio_datetime.get_hour(), Some(14));
+        assert_eq!(msf.radio_datetime.get_weekday(), Some(6));
+        assert_eq!(msf.radio_datetime.get_day(), Some(23));
+        assert_eq!(msf.radio_datetime.get_month(), Some(10));
+        assert_eq!(msf.radio_datetime.get_year(), Some(22));
+        assert_eq!(msf.parity_1, Some(true));
+        assert_eq!(msf.parity_2, Some(true));
+        assert_eq!(msf.parity_3, Some(true));
+        assert_eq!(msf.parity_4, Some(true));
+        assert_eq!(
+            msf.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
+        assert_eq!(msf.radio_datetime.get_leap_second(), None);
+        assert_eq!(msf.radio_datetime.get_jump_minute(), true);
+        assert_eq!(msf.radio_datetime.get_jump_hour(), false);
+        assert_eq!(msf.radio_datetime.get_jump_weekday(), false);
+        assert_eq!(msf.radio_datetime.get_jump_day(), false);
+        assert_eq!(msf.radio_datetime.get_jump_month(), false);
+        assert_eq!(msf.radio_datetime.get_jump_year(), false);
+    }
+    #[test]
+    fn continue_decode_time_complete_minute_bad_bits_strict() {
+        let mut msf = MSFUtils::default();
+        msf.second = 59;
+        assert_eq!(msf.get_minute_length(), msf.second + 1); // EOM marker absent
+        for b in 0..=59 {
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+        }
+        msf.decode_time(true);
+        assert_eq!(msf.first_minute, false);
+        // update for the next minute:
+        msf.bit_buffer_a[51] = Some(true);
+        msf.bit_buffer_b[57] = Some(true);
+        // introduce some distortions:
+        msf.bit_buffer_a[31] = None; // None hour
+        msf.bit_buffer_a[48] = Some(!msf.bit_buffer_a[48].unwrap());
+        msf.decode_time(true);
+        assert_eq!(msf.radio_datetime.get_minute(), Some(59)); // bad parity
+        assert_eq!(msf.radio_datetime.get_hour(), Some(14));
+        assert_eq!(msf.radio_datetime.get_weekday(), Some(6)); // broken parity
+        assert_eq!(msf.radio_datetime.get_day(), Some(23)); // broken bit
+        assert_eq!(msf.radio_datetime.get_month(), Some(10)); // broken parity
+        assert_eq!(msf.radio_datetime.get_year(), Some(22)); // broken parity
+        assert_eq!(msf.parity_1, Some(true));
+        assert_eq!(msf.parity_2, None); // broken bit
+        assert_eq!(msf.parity_3, Some(true));
+        assert_eq!(msf.parity_4, Some(false)); // bad parity
+        assert_eq!(
+            msf.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
+        assert_eq!(msf.radio_datetime.get_leap_second(), None);
+        assert_eq!(msf.radio_datetime.get_jump_minute(), false);
+        assert_eq!(msf.radio_datetime.get_jump_hour(), false);
+        assert_eq!(msf.radio_datetime.get_jump_weekday(), false);
+        assert_eq!(msf.radio_datetime.get_jump_day(), false);
+        assert_eq!(msf.radio_datetime.get_jump_month(), false);
+        assert_eq!(msf.radio_datetime.get_jump_year(), false);
+    }
+    #[test]
+    fn continue_decode_time_complete_minute_dst_change_strict() {
+        let mut msf = MSFUtils::default();
+        msf.second = 59;
+        for b in 0..=59 {
+            msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
+            msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
+        }
+        // DST change must be at top of hour and
+        // announcements only count before the hour, so set minute to 59:
+        msf.bit_buffer_a[51] = Some(true);
+        msf.bit_buffer_b[57] = Some(true);
+        // announce a DST change:
+        msf.bit_buffer_b[53] = Some(true);
+        msf.decode_time(true);
+        assert_eq!(msf.radio_datetime.get_minute(), Some(59));
+        assert_eq!(
+            msf.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_ANNOUNCED | radio_datetime_utils::DST_SUMMER)
+        );
+        // next minute and hour:
+        msf.bit_buffer_a[45] = Some(false);
+        msf.bit_buffer_a[47] = Some(false);
+        msf.bit_buffer_a[48] = Some(false);
+        msf.bit_buffer_a[51] = Some(false);
+        msf.bit_buffer_a[44] = Some(true);
+        msf.bit_buffer_b[57] = Some(false);
+        // which will have a DST change:
+        msf.bit_buffer_b[53] = Some(true);
+        msf.bit_buffer_b[58] = Some(false);
+        msf.decode_time(true);
         assert_eq!(msf.radio_datetime.get_minute(), Some(0));
         assert_eq!(msf.radio_datetime.get_hour(), Some(15));
         assert_eq!(
