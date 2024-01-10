@@ -71,12 +71,12 @@ impl MSFUtils {
         self.first_minute
     }
 
-    /// Return if a new minute has arrived.
+    /// Return if a new minute (0111_1110 marker) has arrived.
     pub fn get_new_minute(&self) -> bool {
         self.new_minute
     }
 
-    /// Return if the begin-of-minute marker has arrived.
+    /// Return if the 500 ms long begin-of-minute marker has arrived.
     pub fn get_past_new_minute(&self) -> bool {
         self.past_new_minute
     }
