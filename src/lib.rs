@@ -1150,7 +1150,7 @@ mod tests {
         assert_eq!(msf.radio_datetime.get_jump_year(), false);
     }
     #[test]
-    fn continue_decode_time_complete_minute_dst_change() {
+    fn continue_decode_time_complete_minute_dst_change_to_winter() {
         let mut msf = MSFUtils::default();
         msf.second = 59;
         for b in 0..=59 {
@@ -1411,13 +1411,15 @@ mod tests {
         assert_eq!(msf.radio_datetime.get_jump_year(), false);
     }
     #[test]
-    fn continue_decode_time_complete_minute_dst_change_strict() {
+    fn continue_decode_time_complete_minute_dst_change_to_summer_strict() {
         let mut msf = MSFUtils::default();
         msf.second = 59;
         for b in 0..=59 {
             msf.bit_buffer_a[b] = Some(BIT_BUFFER_A[b]);
             msf.bit_buffer_b[b] = Some(BIT_BUFFER_B[b]);
         }
+        // flip to winter
+        msf.bit_buffer_b[58] = Some(false);
         // DST change must be at top of hour and
         // announcements only count before the hour, so set minute to 59:
         msf.bit_buffer_a[51] = Some(true);
@@ -1428,7 +1430,7 @@ mod tests {
         assert_eq!(msf.radio_datetime.get_minute(), Some(59));
         assert_eq!(
             msf.radio_datetime.get_dst(),
-            Some(radio_datetime_utils::DST_ANNOUNCED | radio_datetime_utils::DST_SUMMER)
+            Some(radio_datetime_utils::DST_ANNOUNCED)
         );
         // next minute and hour:
         msf.bit_buffer_a[45] = Some(false);
@@ -1439,14 +1441,14 @@ mod tests {
         msf.bit_buffer_b[57] = Some(false);
         // which will have a DST change:
         msf.bit_buffer_b[53] = Some(true);
-        msf.bit_buffer_b[58] = Some(false);
+        msf.bit_buffer_b[58] = Some(true);
         msf.decode_time(true);
         assert_eq!(msf.radio_datetime.get_minute(), Some(0));
         assert_eq!(msf.radio_datetime.get_hour(), Some(15));
         assert_eq!(
             msf.radio_datetime.get_dst(),
-            Some(radio_datetime_utils::DST_PROCESSED)
-        ); // DST flipped off
+            Some(radio_datetime_utils::DST_PROCESSED | radio_datetime_utils::DST_SUMMER)
+        ); // DST flipped on
     }
 
     #[test]
