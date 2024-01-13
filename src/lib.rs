@@ -1345,7 +1345,7 @@ mod tests {
         msf.decode_time(true);
         assert_eq!(msf.radio_datetime.get_minute(), Some(58));
         assert_eq!(msf.radio_datetime.get_jump_minute(), false);
-        msf.first_minute = false;
+        assert_eq!(msf.first_minute, false);
         // minute 58 is really cool, so do not update bit 51 (and 57)
         msf.decode_time(true);
         assert_eq!(msf.radio_datetime.get_minute(), Some(58));
